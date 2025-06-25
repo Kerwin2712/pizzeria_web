@@ -21,22 +21,22 @@ class MainView(ft.View):
         self.route = "/" # Ruta por defecto para esta vista
 
         # Configuración de colores para modo oscuro
-        self.page_bg_color = ft.colors.BLACK # Color de fondo general de la página
+        self.page_bg_color = ft.colors.BLACK # Color de fondo general de la página/vista
         self.card_bg_color = ft.colors.BLUE_GREY_900 # Color de fondo de las tarjetas
         self.text_color = ft.colors.WHITE # Color de texto principal
         self.nav_rail_bg_color = ft.colors.BLUE_GREY_800 # Color de la barra de navegación lateral
         self.appbar_bg_color = ft.colors.BLUE_GREY_900 # Color de la barra superior
         self.textfield_fill_color = ft.colors.BLUE_GREY_700 # Color de fondo de TextField en barra superior
 
-        # Establece el color de fondo de la página
-        self.page.bgcolor = self.page_bg_color
+        # Establece el color de fondo de la VISTA, no de la página globalmente
+        self.bgcolor = self.page_bg_color
 
         # Opcional: Instanciar servicios aquí si la vista va a manejar directamente la lógica de DB.
         # Si la lógica de DB se maneja en un controlador o capa superior, estos se pasarán como argumentos.
         # self.cliente_service = ClienteService(page.session_factory) # Suponiendo page.session_factory
         # self.menu_service = MenuService(page.session_factory)
 
-        self.page.title = "La Mejor Pizzería"
+        self.page.title = "La Mejor Pizzería" # Título de la ventana del navegador/app
         self.page.vertical_alignment = ft.CrossAxisAlignment.START
         self.page.horizontal_alignment = ft.CrossAxisAlignment.START
         self.page.window_height = 800
@@ -100,8 +100,8 @@ class MainView(ft.View):
             # border_radius=ft.border_radius.all(10) # Se eliminó esta propiedad, no es soportada directamente por NavigationRail
         )
 
-        # Barra superior (AppBar)
-        self.page.appbar = ft.AppBar(
+        # Barra superior (AppBar) - ASIGNADA A LA VISTA
+        self.appbar = ft.AppBar( # CAMBIO CLAVE: self.page.appbar -> self.appbar
             leading=ft.Icon(ft.icons.LOCAL_PIZZA, size=30, color=self.text_color), # Color del ícono
             leading_width=40,
             title=ft.Text("La Mejor Pizzería", weight=ft.FontWeight.BOLD, color=self.text_color), # Color del texto
@@ -227,7 +227,7 @@ class MainView(ft.View):
 
         self.main_content_area.controls.append(
             CustomCard(
-                title="📜 Nuestro Delicioso Menú �",
+                title="📜 Nuestro Delicioso Menú 📜",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
@@ -248,7 +248,7 @@ class MainView(ft.View):
         self.main_content_area.controls.clear()
         self.main_content_area.controls.append(
             CustomCard(
-                title="🛒 Realiza tu Pedido 🛒",
+                title="🛒 Realiza tu Pedido �",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
