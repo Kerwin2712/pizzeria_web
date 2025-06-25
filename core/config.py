@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from typing import Dict, Any
 import flet as ft
+from urllib.parse import quote_plus # Importa quote_plus para escapar la contraseña
 
 # Carga las variables de entorno del archivo .env
 load_dotenv()
@@ -29,7 +30,10 @@ class Config:
     @property
     def DATABASE_URL(self) -> str:
         """Retorna la URL de conexión de la base de datos."""
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        # Escapa la contraseña para asegurar que los caracteres especiales se manejen correctamente
+        # en la URL de conexión.
+        encoded_password = quote_plus(self.DB_PASSWORD)
+        return f"postgresql://{self.DB_USER}:{encoded_password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     # Configuración de la aplicación Flet
     FLET_PORT: int = int(os.getenv("FLET_PORT", "8500"))
