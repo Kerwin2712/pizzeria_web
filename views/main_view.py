@@ -1,352 +1,257 @@
 # views/main_view.py
 import flet as ft
 from utils.widgets import CustomCard, create_data_table, show_snackbar, show_alert_dialog, create_date_picker, create_time_picker, create_message_box, create_simple_bar_chart
+import logging # Importa el módulo logging
 
-# Aunque los servicios se instanciarán en main.py, los importamos aquí para referencia de tipos
-# from services.cliente_service import ClienteService
-# from services.menu_service import MenuService
-# from services.pedido_service import PedidoService
-# from services.financiero_service import FinancieroService
-# from services.pizzeria_info_service import PizzeriaInfoService
-# from services.administrador_service import AdministradorService
+# Importamos el servicio de administrador
+from services.administrador_service import AdministradorService
+from views.admin_view import AdminView # Importa AdminView para poder manipular su instancia
+
+logger = logging.getLogger(__name__) # Obtiene una instancia del logger para este módulo
 
 class MainView(ft.View):
     """
     Vista principal de la aplicación de la pizzería.
     Contiene la barra de navegación lateral, la barra superior y el contenido dinámico.
     """
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, administrador_service: AdministradorService, admin_view_instance: AdminView): # Recibe el servicio y la instancia de AdminView
         super().__init__()
         self.page = page
         self.route = "/" # Ruta por defecto para esta vista
+
+        # Instancia del servicio de administrador
+        self.administrador_service = administrador_service
+        # Instancia de AdminView para poder manipular su estado
+        self.admin_view_instance = admin_view_instance
+
+        # Referencias a los campos de texto para el login
+        self.admin_username_field = ft.TextField(
+            label="Usuario",
+            hint_text="admin_user",
+            filled=True,
+            fill_color=ft.colors.BLUE_GREY_800, # Ajusta a tu preferencia
+            color=ft.colors.WHITE,
+            hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
+        self.admin_password_field = ft.TextField(
+            label="Contraseña",
+            password=True,
+            can_reveal_password=True,
+            filled=True,
+            fill_color=ft.colors.BLUE_GREY_800, # Ajusta a tu preferencia
+            color=ft.colors.WHITE,
+            hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
 
         # Configuración de colores para modo oscuro
         self.page_bg_color = ft.colors.BLACK # Color de fondo general de la página/vista
         self.card_bg_color = ft.colors.BLUE_GREY_900 # Color de fondo de las tarjetas
         self.text_color = ft.colors.WHITE # Color de texto principal
-        self.nav_rail_bg_color = ft.colors.BLUE_GREY_800 # Color de la barra de navegación lateral
-        self.appbar_bg_color = ft.colors.BLUE_GREY_900 # Color de la barra superior
-        self.textfield_fill_color = ft.colors.BLUE_GREY_700 # Color de fondo de TextField en barra superior
+        self.nav_rail_bg_color = ft.colors.BLUE_GREY_900 # Color de fondo de la barra de navegación lateral
+        self.textfield_fill_color = ft.colors.BLUE_GREY_800 # Color de fondo para los TextField
 
-        # Establece el color de fondo de la VISTA, no de la página globalmente
-        self.bgcolor = self.page_bg_color
+        self.drawer_open = False # Estado del drawer (panel lateral)
 
-        # Opcional: Instanciar servicios aquí si la vista va a manejar directamente la lógica de DB.
-        # Si la lógica de DB se maneja en un controlador o capa superior, estos se pasarán como argumentos.
-        # self.cliente_service = ClienteService(page.session_factory) # Suponiendo page.session_factory
-        # self.menu_service = MenuService(page.session_factory)
+        # Define el NavRail y su contenido
+        self.navigation_rail = self._create_navigation_rail()
 
-        self.page.title = "La Mejor Pizzería" # Título de la ventana del navegador/app
-        self.page.vertical_alignment = ft.CrossAxisAlignment.START
-        self.page.horizontal_alignment = ft.CrossAxisAlignment.START
-        self.page.window_height = 800
-        self.page.window_width = 1200
-
-        # Contenedor principal para el contenido que cambia dinámicamente
+        # Define el área de contenido principal
         self.main_content_area = ft.Column(
+            [
+                ft.Text("Bienvenido al Sistema de Gestión de Pizzería!", size=24, weight=ft.FontWeight.BOLD, color=self.text_color),
+                ft.Text("Selecciona una opción del menú lateral.", size=16, color=self.text_color),
+            ],
             expand=True,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            scroll=ft.ScrollMode.AUTO, # Habilitar scroll si el contenido es grande
-            spacing=20,
-            controls=[] # Se llenará dinámicamente
+            alignment=ft.MainAxisAlignment.START,
+            scroll=ft.ScrollMode.AUTO # Permite scroll si el contenido es grande
         )
 
-        # Barra lateral de navegación
-        self.navigation_rail = ft.NavigationRail(
-            selected_index=0,
-            label_type=ft.NavigationRailLabelType.ALL,
-            extended=True, # Extendida por defecto
-            min_width=100,
-            min_extended_width=200,
-            leading=ft.Container(
-                ft.Text("Menú Principal", size=18, weight=ft.FontWeight.BOLD, color=self.text_color), # Color del texto
-                padding=ft.padding.only(top=20, bottom=20, left=10)
-            ),
-            group_alignment=-0.9, # Alinea los ítems en la parte superior
-            destinations=[
-                ft.NavigationRailDestination(
-                    icon=ft.icons.HOME_OUTLINED,
-                    selected_icon=ft.icons.HOME,
-                    label_content=ft.Text("Inicio", color=self.text_color), # Color del texto de la etiqueta
-                ),
-                ft.NavigationRailDestination(
-                    icon_content=ft.Icon(ft.icons.MENU_BOOK_OUTLINED),
-                    selected_icon_content=ft.Icon(ft.icons.MENU_BOOK),
-                    label_content=ft.Text("Menú", color=self.text_color), # Color del texto de la etiqueta
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.icons.SHOPPING_CART_OUTLINED,
-                    selected_icon=ft.icons.SHOPPING_CART,
-                    label_content=ft.Text("Hacer Pedido", color=self.text_color), # Color del texto de la etiqueta
-                ),
-                 ft.NavigationRailDestination(
-                    icon=ft.icons.PERSON_ADD_ALT_OUTLINED,
-                    selected_icon=ft.icons.PERSON_ADD_ALT,
-                    label_content=ft.Text("Mi Cuenta", color=self.text_color), # Color del texto de la etiqueta
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.icons.INFO_OUTLINE,
-                    selected_icon=ft.icons.INFO,
-                    label_content=ft.Text("Pizzería Info", color=self.text_color), # Color del texto de la etiqueta
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.icons.ADMIN_PANEL_SETTINGS_OUTLINED,
-                    selected_icon=ft.icons.ADMIN_PANEL_SETTINGS,
-                    label_content=ft.Text("Administrador", color=self.text_color), # Color del texto de la etiqueta
-                ),
-            ],
-            on_change=self._on_navigation_change,
-            bgcolor=self.nav_rail_bg_color, # Color de fondo mejorado para modo oscuro
-            # border_radius=ft.border_radius.all(10) # Se eliminó esta propiedad, no es soportada directamente por NavigationRail
-        )
-
-        # Barra superior (AppBar) - ASIGNADA A LA VISTA
-        self.appbar = ft.AppBar( # CAMBIO CLAVE: self.page.appbar -> self.appbar
-            leading=ft.Icon(ft.icons.LOCAL_PIZZA, size=30, color=self.text_color), # Color del ícono
-            leading_width=40,
-            title=ft.Text("La Mejor Pizzería", weight=ft.FontWeight.BOLD, color=self.text_color), # Color del texto
-            center_title=False,
-            bgcolor=self.appbar_bg_color, # Color de la barra superior
-            actions=[
-                ft.Container(
-                    ft.TextField(
-                        hint_text="Buscar...",
-                        prefix_icon=ft.icons.SEARCH,
-                        border_radius=ft.border_radius.all(20),
-                        filled=True,
-                        fill_color=self.textfield_fill_color, # Color de fondo para TextField
-                        color=self.text_color, # Color del texto de entrada
-                        hint_style=ft.TextStyle(color=ft.colors.WHITE54), # Color del hint text
-                        width=300,
-                        on_submit=self._on_search,
-                    ),
-                    padding=ft.padding.only(right=15)
-                ),
-                ft.IconButton(ft.icons.HELP_OUTLINE, tooltip="Ayuda", icon_color=self.text_color), # Color del ícono
-                ft.IconButton(ft.icons.MORE_VERT, icon_color=self.text_color), # Color del ícono
-            ],
-            toolbar_height=70,
-            elevation=4
-        )
-
-        # Contenido de la vista
+        # Define el layout general de la vista
         self.controls = [
             ft.Row(
                 [
                     self.navigation_rail,
-                    ft.VerticalDivider(width=1, color=ft.colors.BLUE_GREY_700), # Color del divisor
+                    ft.VerticalDivider(width=1),
                     self.main_content_area,
                 ],
                 expand=True,
             )
         ]
-        
-        # Cargar la sección de inicio por defecto
-        self._load_home_section()
 
-    # --- Helper para simular eventos de NavigationRail ---
-    def _create_mock_nav_event(self, index: int):
-        """Crea un objeto de evento simulado para _on_navigation_change."""
-        class MockControl:
-            def __init__(self, selected_index_val):
-                self.selected_index = selected_index_val
-        class MockEvent:
-            def __init__(self, control_obj):
-                self.control = control_obj
-        return MockEvent(MockControl(index))
+    def _create_navigation_rail(self):
+        """Crea la barra de navegación lateral."""
+        return ft.NavigationRail(
+            selected_index=0, # Índice seleccionado inicialmente
+            label_type=ft.NavigationRailLabelType.ALL,
+            extended=True, # Inicia extendido
+            min_width=100,
+            min_extended_width=200,
+            bgcolor=self.nav_rail_bg_color,
+            destinations=[
+                ft.NavigationRailDestination(
+                    icon=ft.icons.HOME_OUTLINED,
+                    selected_icon=ft.icons.HOME,
+                    label="Inicio",
+                ),
+                ft.NavigationRailDestination(
+                    icon_content=ft.Icon(ft.icons.LOCAL_PIZZA_OUTLINED),
+                    selected_icon_content=ft.Icon(ft.icons.LOCAL_PIZZA),
+                    label="Menú",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.icons.SHOPPING_CART_OUTLINED,
+                    selected_icon=ft.icons.SHOPPING_CART,
+                    label="Pedidos",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.icons.PEOPLE_OUTLINED,
+                    selected_icon=ft.icons.PEOPLE,
+                    label="Clientes",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.icons.ADMIN_PANEL_SETTINGS_OUTLINED,
+                    selected_icon=ft.icons.ADMIN_PANEL_SETTINGS,
+                    label="Administrador",
+                ),
+            ],
+            on_change=self._on_navigation_rail_change,
+        )
 
-    def _on_navigation_change(self, e):
-        """Maneja el cambio de selección en la barra de navegación lateral."""
-        self.navigation_rail.selected_index = e.control.selected_index
-        if self.navigation_rail.selected_index == 0:
+    def _on_navigation_rail_change(self, e: ft.ControlEvent):
+        """Maneja el cambio de selección en el NavRail."""
+        logger.info(f"Navegación seleccionada: {e.control.selected_index}")
+        if e.control.selected_index == 0:
             self._load_home_section()
-        elif self.navigation_rail.selected_index == 1:
-            self._load_menu_section()
-        elif self.navigation_rail.selected_index == 2:
-            self._load_order_section()
-        elif self.navigation_rail.selected_index == 3:
-            self._load_my_account_section()
-        elif self.navigation_rail.selected_index == 4:
-            self._load_pizzeria_info_section()
-        elif self.navigation_rail.selected_index == 5:
+        elif e.control.selected_index == 1:
+            show_snackbar(self.page, "Sección de Menú - ¡Implementar!")
+            self._load_menu_section() # Puedes definir esta función
+        elif e.control.selected_index == 2:
+            show_snackbar(self.page, "Sección de Pedidos - ¡Implementar!")
+            self._load_orders_section() # Puedes definir esta función
+        elif e.control.selected_index == 3:
+            show_snackbar(self.page, "Sección de Clientes - ¡Implementar!")
+            self._load_customers_section() # Puedes definir esta función
+        elif e.control.selected_index == 4:
             self._load_admin_section()
-        
-        self.main_content_area.update()
-        self.page.update() # Actualizar la página para reflejar el cambio
-
-
-    def _on_search(self, e):
-        """Maneja la acción de búsqueda."""
-        search_query = e.control.value
-        show_snackbar(self.page, f"Buscando: {search_query}", ft.colors.BLUE_GREY_700)
-        # Aquí iría la lógica para redirigir o filtrar contenido basado en la búsqueda
-        # Por ahora, solo muestra un mensaje.
-
-    # --- Secciones de Contenido Dinámico ---
+        self.page.update()
 
     def _load_home_section(self):
-        """Carga la sección de inicio (home)."""
+        """Carga la sección de inicio."""
         self.main_content_area.controls.clear()
         self.main_content_area.controls.append(
             CustomCard(
-                title="🍕 ¡Bienvenido a La Mejor Pizzería! 🍕",
-                title_color=self.text_color, # Color del título de la tarjeta
-                bgcolor=self.card_bg_color, # Color de fondo de la tarjeta
-                content=ft.Column([
-                    ft.Text("Las pizzas más deliciosas y el mejor servicio de delivery.", size=18, color=self.text_color),
-                    ft.Text("Explora nuestro menú y haz tu pedido ahora mismo.", size=16, color=self.text_color),
-                    ft.ElevatedButton("Ver Menú", on_click=lambda e: self._on_navigation_change(self._create_mock_nav_event(1))), # Corregido aquí
-                    ft.Divider(color=ft.colors.BLUE_GREY_700),
-                    ft.Text("Oferta del Día:", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
-                    ft.Text("¡Pizza familiar de Pepperoni con 20% de descuento!", size=16, color=ft.colors.RED_500), # Color rojo para oferta
-                    ft.Image(
-                        src="https://placehold.co/400x200/FF5733/FFFFFF?text=Pizza+Oferta",
-                        width=400,
-                        height=200,
-                        fit=ft.ImageFit.COVER,
-                        border_radius=ft.border_radius.all(10)
-                    )
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+                title="🍕 ¡Bienvenido a la Pizzería Acme! 🍕",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
+                content=ft.Column(
+                    [
+                        ft.Text("Explora nuestro delicioso menú o gestiona tu pedido.", size=16, color=self.text_color),
+                        ft.Text("¡Tu destino favorito para las mejores pizzas!", size=16, color=self.text_color),
+                        ft.ElevatedButton("Ver Menú", on_click=lambda e: self._on_navigation_rail_change(ft.ControlEvent(selected_index=1, control=self.navigation_rail))),
+                        ft.Divider(color=ft.colors.BLUE_GREY_700),
+                        ft.Text("Oferta del Día:", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        ft.Text("¡Pizza Grande de Pepperoni con un 20% de descuento!", size=16, color=ft.colors.RED_500),
+                        ft.Image(
+                            src="https://placehold.co/400x200/FF5733/FFFFFF?text=Pizza+Oferta",
+                            width=400,
+                            height=200,
+                            fit=ft.ImageFit.COVER,
+                            border_radius=ft.border_radius.all(10)
+                        )
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                )
             )
         )
+        self.main_content_area.update() # Asegura que la UI se actualice
 
     def _load_menu_section(self):
         """Carga la sección del menú."""
         self.main_content_area.controls.clear()
-        
-        # Datos de ejemplo para el menú
-        menu_columns = ["Ítem", "Descripción", "Precio"]
-        menu_rows = [
-            ["Pizza Margarita", "Tomate, mozzarella, albahaca", "$10.50"],
-            ["Pizza Pepperoni", "Pepperoni, mozzarella, salsa", "$12.00"],
-            ["Pizza Cuatro Quesos", "Mozzarella, provolone, gorgonzola, parmesano", "$13.50"],
-            ["Bebida Cola (L)", "Refresco de cola de 1.5L", "$3.00"],
-            ["Pan de Ajo", "Pan con ajo y queso fundido", "$4.00"],
-            ["Tiramisú", "Postre italiano clásico", "$5.50"],
-        ]
-
         self.main_content_area.controls.append(
             CustomCard(
                 title="📜 Nuestro Delicioso Menú 📜",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Aquí puedes encontrar todas nuestras opciones:", size=16, color=self.text_color),
-                    create_data_table(menu_columns, menu_rows,
-                                      heading_row_bgcolor=ft.colors.BLUE_GREY_700,
-                                      data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
-                                      border_color=ft.colors.BLUE_GREY_700,
-                                      text_color=self.text_color), # Color del texto de la tabla
-                    ft.ElevatedButton("Hacer un Pedido", on_click=lambda e: self._on_navigation_change(self._create_mock_nav_event(2))) # Corregido aquí
+                    ft.Text("Aquí puedes encontrar todas nuestras opciones de pizzas, bebidas y postres.", size=16, color=self.text_color),
+                    ft.Text("¡Pronto podrás ver los ítems de tu base de datos aquí!", size=14, color=ft.colors.WHITE54),
+                    # Tabla de datos simulada o con datos reales si se integra el servicio
+                    create_data_table(
+                        ["Ítem", "Descripción", "Precio"],
+                        [
+                            ["Pizza Margherita", "Tomate, mozzarella, albahaca fresca", "$10.00"],
+                            ["Pizza Pepperoni", "Pepperoni, mozzarella, salsa de tomate", "$12.00"],
+                            ["Refresco Grande", "Varios sabores", "$3.50"],
+                        ],
+                        heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                        data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                        border_color=ft.colors.BLUE_GREY_700,
+                        text_color=self.text_color
+                    ),
+                    ft.ElevatedButton("Hacer Pedido", on_click=lambda e: self._on_navigation_rail_change(ft.ControlEvent(selected_index=2, control=self.navigation_rail))),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=800
             )
         )
+        self.main_content_area.update()
 
-    def _load_order_section(self):
-        """Carga la sección para hacer un pedido."""
+    def _load_orders_section(self):
+        """Carga la sección de pedidos."""
         self.main_content_area.controls.clear()
         self.main_content_area.controls.append(
             CustomCard(
-                title="🛒 Realiza tu Pedido �",
+                title="🛒 Realiza tu Pedido 🛒",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Selecciona tus ítems y completa los datos para el delivery.", size=16, color=self.text_color),
+                    ft.Text("Completa los detalles para tu pedido y dirección de envío.", size=16, color=self.text_color),
                     ft.TextField(label="Nombre Completo", hint_text="Juan Pérez", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Dirección de Envío", hint_text="Calle Principal 123, Ciudad", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
+                    ft.TextField(label="Dirección de Envío", hint_text="Calle Falsa 123, Springfield", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
                     ft.TextField(label="Teléfono", hint_text="04XX-XXXXXXX", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Email (opcional)", hint_text="correo@example.com", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.Divider(color=ft.colors.BLUE_GREY_700),
-                    ft.Text("Items del Pedido:", size=18, weight=ft.FontWeight.BOLD, color=self.text_color),
-                    # Aquí iría un ListView o Column de ítems seleccionables del menú
-                    ft.ElevatedButton("Añadir Ítem del Menú", on_click=lambda e: show_snackbar(self.page, "Funcionalidad para añadir ítems al carrito.")),
-                    ft.Divider(color=ft.colors.BLUE_GREY_700),
-                    ft.Text("Total: $0.00", size=20, weight=ft.FontWeight.BOLD, color=self.text_color), # Placeholder para el total
                     ft.ElevatedButton(
-                        "Proceder al Pago",
-                        icon=ft.icons.PAYMENT,
-                        on_click=lambda e: show_alert_dialog(self.page, "Pago", "Funcionalidad de pago no implementada aún.", title_color=self.text_color, content_color=self.text_color)
+                        "Confirmar Pedido",
+                        icon=ft.icons.CHECK_CIRCLE,
+                        on_click=lambda e: show_snackbar(self.page, "¡Pedido simulado realizado con éxito!", ft.colors.GREEN_700)
                     )
-                ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=10),
+                ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=15),
                 width=600
             )
         )
+        self.main_content_area.update()
 
-    def _load_my_account_section(self):
-        """Carga la sección de Mi Cuenta / Registro de Cliente."""
+    def _load_customers_section(self):
+        """Carga la sección de clientes."""
         self.main_content_area.controls.clear()
         self.main_content_area.controls.append(
             CustomCard(
-                title="👤 Mi Cuenta / Regístrate 📝",
+                title="👥 Gestión de Clientes (Simulado) 👥",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("¿Ya tienes cuenta? Inicia sesión o regístrate para guardar tus datos y pedidos.", size=16, color=self.text_color),
-                    ft.TextField(label="Email", hint_text="tu_email@example.com", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Contraseña", password=True, can_reveal_password=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.Row([
-                        ft.ElevatedButton("Iniciar Sesión", on_click=lambda e: show_snackbar(self.page, "Funcionalidad de inicio de sesión.")),
-                        ft.TextButton("Registrarse", on_click=lambda e: show_snackbar(self.page, "Funcionalidad de registro de nuevo cliente."))
-                    ], alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Divider(color=ft.colors.BLUE_GREY_700),
-                    ft.Text("O regístrate rápidamente:", size=16, weight=ft.FontWeight.BOLD, color=self.text_color),
-                    ft.TextField(label="Nombre Completo", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Cédula", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)), # Asumiendo que se usa cédula
-                    ft.TextField(label="Teléfono", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Dirección", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.ElevatedButton("Crear Cuenta", on_click=lambda e: show_snackbar(self.page, "Funcionalidad de creación de cuenta."))
-                ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=10),
-                width=600
+                    ft.Text("Aquí se mostraría la información de tus clientes.", size=16, color=self.text_color),
+                    ft.Text("Esta sección aún no está conectada a la base de datos de clientes.", size=14, color=ft.colors.WHITE54),
+                    create_data_table(
+                        ["ID", "Nombre", "Email", "Teléfono"],
+                        [
+                            ["1", "Ana García", "ana@example.com", "555-1234"],
+                            ["2", "Luis Martínez", "luis@example.com", "555-5678"],
+                        ],
+                        heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                        data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                        border_color=ft.colors.BLUE_GREY_700,
+                        text_color=self.text_color
+                    ),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
+                width=800
             )
         )
-
-    def _load_pizzeria_info_section(self):
-        """Carga la sección de información de la pizzería."""
-        self.main_content_area.controls.clear()
-        
-        # Datos de ejemplo. Esto se cargaría desde PizzeriaInfoService
-        info_nombre = "La Mejor Pizzería C.A."
-        info_direccion = "Av. Principal con Calle del Sabor, Centro Comercial Pizza Plaza, Nivel PB, Local #10, Caracas."
-        info_telefono = "+58 (212) 123-4567"
-        info_email = "contacto@lamejorpizzeria.com"
-        info_horario = "Lunes a Domingo: 11:00 AM - 11:00 PM"
-        info_facebook = "facebook.com/lamejorpizzeria"
-        info_instagram = "instagram.com/lamejorpizzeria"
-
-        self.main_content_area.controls.append(
-            CustomCard(
-                title="ℹ️ Información de Nuestra Pizzería ℹ️",
-                title_color=self.text_color,
-                bgcolor=self.card_bg_color,
-                content=ft.Column([
-                    ft.Text(f"Nombre: {info_nombre}", size=16, color=self.text_color),
-                    ft.Text(f"Dirección: {info_direccion}", size=16, color=self.text_color),
-                    ft.Text(f"Teléfono: {info_telefono}", size=16, color=self.text_color),
-                    ft.Text(f"Email: {info_email}", size=16, color=self.text_color),
-                    ft.Text(f"Horario: {info_horario}", size=16, color=self.text_color),
-                    ft.Text(f"Síguenos en:", color=self.text_color),
-                    ft.Row([
-                        ft.IconButton(ft.icons.FACEBOOK, url=f"https://{info_facebook}", icon_color=ft.colors.BLUE_400), # Color de icono
-                        ft.GestureDetector( # Nuevo: Para hacer el texto clickeable
-                            content=ft.Text(info_facebook, color=ft.colors.BLUE_400, style=ft.TextThemeStyle.BODY_LARGE), # Color de texto de enlace
-                            on_tap=lambda e: self.page.launch_url(f"https://{info_facebook}")
-                        )
-                    ]),
-                    ft.Row([
-                        ft.IconButton(ft.icons.CAMERA_ALT_ROUNDED, url=f"https://{info_instagram}", icon_color=ft.colors.PURPLE_400), # Color de icono
-                        ft.GestureDetector( # Nuevo: Para hacer el texto clickeable
-                            content=ft.Text(info_instagram, color=ft.colors.PURPLE_400, style=ft.TextThemeStyle.BODY_LARGE), # Color de texto de enlace
-                            on_tap=lambda e: self.page.launch_url(f"https://{info_instagram}")
-                        )
-                    ]),
-                ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=10),
-                width=700
-            )
-        )
+        self.main_content_area.update()
 
     def _load_admin_section(self):
         """Carga la sección de acceso de administrador."""
+        logger.info("Cargando sección de acceso de administrador.")
         self.main_content_area.controls.clear()
         self.main_content_area.controls.append(
             CustomCard(
@@ -355,14 +260,47 @@ class MainView(ft.View):
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
                     ft.Text("Por favor, introduce tus credenciales de administrador.", size=16, color=self.text_color),
-                    ft.TextField(label="Usuario", hint_text="admin_user", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Contraseña", password=True, can_reveal_password=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
+                    self.admin_username_field, # Usamos la referencia a los campos
+                    self.admin_password_field, # Usamos la referencia a los campos
                     ft.ElevatedButton(
                         "Iniciar Sesión como Administrador",
                         icon=ft.icons.LOGIN,
-                        on_click=lambda e: show_alert_dialog(self.page, "Acceso Admin", "Funcionalidad de inicio de sesión de administrador.", title_color=self.text_color, content_color=self.text_color)
+                        on_click=self._admin_login # Llama al nuevo método de login
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=400
             )
         )
+        self.main_content_area.update() # Asegura que la UI se actualice
+
+    def _admin_login(self, e):
+        """
+        Maneja la lógica de inicio de sesión del administrador.
+        """
+        username = self.admin_username_field.value
+        password = self.admin_password_field.value
+
+        logger.info(f"Intento de login para usuario: {username}")
+
+        if not username or not password:
+            show_snackbar(self.page, "Por favor, ingresa usuario y contraseña.", ft.colors.RED_500)
+            logger.warning("Intento de login fallido: campos vacíos.")
+            return
+
+        admin_user = self.administrador_service.get_administrador_by_usuario(username)
+
+        if admin_user and self.administrador_service.check_password(password, admin_user.contrasena_hash):
+            logger.info(f"Login exitoso para el usuario: {username}")
+            show_snackbar(self.page, f"¡Bienvenido, {admin_user.usuario}! Sesión iniciada.", ft.colors.GREEN_500)
+            
+            # Establecer el estado de login en la instancia de AdminView
+            self.admin_view_instance.is_logged_in = True
+            # Forzar la recarga del dashboard en AdminView
+            self.admin_view_instance._load_dashboard_section() # Asegurarse de que el dashboard se cargue
+
+            self.page.go("/admin") # Redirige a la ruta de administración
+        else:
+            logger.warning(f"Login fallido para el usuario: {username}. Credenciales incorrectas.")
+            show_snackbar(self.page, "Usuario o contraseña incorrectos.", ft.colors.RED_500)
+        self.page.update()
+

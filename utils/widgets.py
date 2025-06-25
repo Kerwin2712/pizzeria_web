@@ -109,7 +109,7 @@ def show_snackbar(page: ft.Page, message: str, color: str = ft.colors.GREEN_500,
         color (str, optional): Color de fondo del SnackBar. Defaults to ft.colors.GREEN_500.
         icon (ft.Icon, optional): Icono opcional a mostrar. Defaults to None.
     """
-    page.snack_bar = ft.SnackBar(
+    snack_bar = ft.SnackBar(
         ft.Row([
             icon if icon else ft.Icon(ft.icons.INFO),
             ft.Text(message, color=ft.colors.WHITE)
@@ -123,7 +123,7 @@ def show_snackbar(page: ft.Page, message: str, color: str = ft.colors.GREEN_500,
         margin=10,
         shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(10)) # Bordes redondeados
     )
-    page.snack_bar.open = True
+    page.open(snack_bar)
     page.update()
 
 def show_alert_dialog(page: ft.Page, title: str, content: str, on_close: callable = None, title_color: str = ft.colors.BLACK, content_color: str = ft.colors.BLACK):
@@ -154,7 +154,7 @@ def show_alert_dialog(page: ft.Page, title: str, content: str, on_close: callabl
         actions_alignment=ft.MainAxisAlignment.END,
         shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15)) # Bordes redondeados
     )
-    page.dialog = dialog
+    page.open(dialog)
     dialog.open = True
     page.update()
 

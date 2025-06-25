@@ -52,7 +52,7 @@ def main(page: ft.Page):
         engine = create_engine(settings.DATABASE_URL)
         
         # Crea todas las tablas en la base de datos si no existen.
-        #Base.metadata.create_all(engine)
+        #Base.metadata.create_all(engine) # Descomenta si necesitas crear tablas automáticamente (considera migraciones en producción)
         logger.info("Tablas de la base de datos verificadas/creadas con éxito.")
         
         # Crea una fábrica de sesiones, que será utilizada por los servicios.
@@ -63,6 +63,7 @@ def main(page: ft.Page):
         logger.critical(f"Error crítico al conectar o inicializar la base de datos: {e}")
         # En una aplicación real, podrías mostrar un mensaje de error al usuario
         page.add(ft.Text(f"Error crítico de base de datos: {e}. Por favor, contacta a soporte."))
+        page.update()
         return # Detiene la ejecución si hay un error crítico de DB
 
     # 3. Instanciar todos los servicios
@@ -77,8 +78,8 @@ def main(page: ft.Page):
 
     # 4. Crear instancias de las vistas
     logger.info("Creando instancias de las vistas...")
-    main_view_instance = MainView(page)
     
+    # Primero instanciamos AdminView
     admin_view_instance = AdminView(
         page,
         cliente_service,
@@ -88,6 +89,12 @@ def main(page: ft.Page):
         pizzeria_info_service,
         administrador_service
     )
+    
+    # Luego instanciamos MainView, pasándole solo los argumentos que su constructor espera.
+    # Se eliminó 'admin_view_instance' de aquí.
+    # Se añade una referencia a admin_view_instance para que MainView pueda establecer su estado de login.
+    main_view_instance = MainView(page, administrador_service, admin_view_instance) 
+    
     logger.info("Vistas creadas correctamente.")
 
     # 5. Gestión de Rutas y Navegación
@@ -114,6 +121,8 @@ def main(page: ft.Page):
             page.views.append(main_view_instance)
             logger.debug("Cargando MainView para la ruta '/'")
         elif page.route == "/admin":
+            # La lógica de estado de login ahora se maneja directamente en AdminView
+            # a través de la comunicación de MainView.
             page.views.append(admin_view_instance)
             logger.debug("Cargando AdminView para la ruta '/admin'")
         else:
@@ -135,5 +144,9 @@ def main(page: ft.Page):
 # 6. Iniciar la aplicación Flet
 if __name__ == "__main__":
     logger.info("Flet app configurada para iniciar.")
+    # Para ejecutar la aplicación como una aplicación web en el navegador,
+    # Flet necesita la vista y el puerto.
+    # Asegúrate de que FLET_VIEW en core/config.py esté configurado como ft.AppView.WEB_BROWSER
+    # y FLET_PORT tenga el puerto deseado (ej. 8550).
     ft.app(target=main, view=settings.FLET_VIEW, port=settings.FLET_PORT)
     logger.info("Flet app iniciada. Puedes acceder a ella a través del navegador.")

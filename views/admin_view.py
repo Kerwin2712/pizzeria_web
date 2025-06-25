@@ -2,6 +2,7 @@
 import flet as ft
 from utils.widgets import CustomCard, create_data_table, show_snackbar, show_alert_dialog, create_message_box, create_simple_bar_chart
 from datetime import datetime, date
+import logging # Importa el módulo logging
 
 # Importaciones de servicios (estos se pasarán al constructor)
 from services.cliente_service import ClienteService
@@ -10,6 +11,8 @@ from services.pedido_service import PedidoService
 from services.financiero_service import FinancieroService
 from services.pizzeria_info_service import PizzeriaInfoService
 from services.administrador_service import AdministradorService
+
+logger = logging.getLogger(__name__) # Obtiene una instancia del logger para este módulo
 
 class AdminView(ft.View):
     """
@@ -30,6 +33,17 @@ class AdminView(ft.View):
         self.page = page
         self.route = "/admin" # Ruta para esta vista
 
+        # Configuración de colores para modo oscuro (similar a MainView)
+        self.page_bg_color = ft.colors.BLACK # Color de fondo general de la vista
+        self.card_bg_color = ft.colors.BLUE_GREY_900 # Color de fondo de las tarjetas
+        self.text_color = ft.colors.WHITE # Color de texto principal
+        self.nav_rail_bg_color = ft.colors.BLUE_GREY_800 # Color de la barra de navegación lateral
+        self.appbar_bg_color = ft.colors.BLUE_GREY_900 # Color de la barra superior
+        self.textfield_fill_color = ft.colors.BLUE_GREY_700 # Color de fondo de TextField
+
+        # Establece el color de fondo de la VISTA
+        self.bgcolor = self.page_bg_color
+
         # Servicios de base de datos
         self.cliente_service = cliente_service
         self.menu_service = menu_service
@@ -37,6 +51,22 @@ class AdminView(ft.View):
         self.financiero_service = financiero_service
         self.pizzeria_info_service = pizzeria_info_service
         self.administrador_service = administrador_service
+
+        # Referencias a los campos de login (para usarlos en el método _admin_login)
+        self.admin_username_field = ft.TextField(label="Usuario", hint_text="admin_user", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.admin_password_field = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+
+        # Referencias a los campos de información de la pizzería
+        self.pizzeria_name_field = ft.TextField(label="Nombre de la Pizzería", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pizzeria_address_field = ft.TextField(label="Dirección", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pizzeria_phone_field = ft.TextField(label="Teléfono", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pizzeria_email_field = ft.TextField(label="Email de Contacto", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pizzeria_hours_field = ft.TextField(label="Horario de Atención", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pizzeria_facebook_field = ft.TextField(label="URL Facebook", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pizzeria_instagram_field = ft.TextField(label="URL Instagram", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+
+        # Variable para controlar si el administrador está logueado
+        self.is_logged_in = False # Por defecto, no logueado. Este estado será actualizado por MainView.
 
         self.page.title = "Panel de Administración - La Mejor Pizzería"
         self.page.vertical_alignment = ft.CrossAxisAlignment.START
@@ -61,7 +91,7 @@ class AdminView(ft.View):
             min_width=100,
             min_extended_width=200,
             leading=ft.Container(
-                ft.Text("Gestión", size=18, weight=ft.FontWeight.BOLD),
+                ft.Text("Gestión", size=18, weight=ft.FontWeight.BOLD, color=self.text_color), # Color del texto
                 padding=ft.padding.only(top=20, bottom=20, left=10)
             ),
             group_alignment=-0.9,
@@ -69,52 +99,53 @@ class AdminView(ft.View):
                 ft.NavigationRailDestination(
                     icon=ft.icons.DASHBOARD_OUTLINED,
                     selected_icon=ft.icons.DASHBOARD,
-                    label="Dashboard",
+                    label_content=ft.Text("Dashboard", color=self.text_color),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.MENU_BOOK_OUTLINED,
                     selected_icon=ft.icons.MENU_BOOK,
-                    label="Menú",
+                    label_content=ft.Text("Menú", color=self.text_color),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.PEOPLE_OUTLINED,
                     selected_icon=ft.icons.PEOPLE,
-                    label="Clientes",
+                    label_content=ft.Text("Clientes", color=self.text_color),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.RECEIPT_OUTLINED,
                     selected_icon=ft.icons.RECEIPT,
-                    label="Pedidos",
+                    label_content=ft.Text("Pedidos", color=self.text_color),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.MONEY_OUTLINED,
                     selected_icon=ft.icons.MONEY,
-                    label="Finanzas",
+                    label_content=ft.Text("Finanzas", color=self.text_color),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.BUSINESS_OUTLINED,
                     selected_icon=ft.icons.BUSINESS,
-                    label="Info Pizzería",
+                    label_content=ft.Text("Info Pizzería", color=self.text_color),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.ADMIN_PANEL_SETTINGS_OUTLINED,
                     selected_icon=ft.icons.ADMIN_PANEL_SETTINGS,
-                    label="Administradores",
+                    label_content=ft.Text("Administradores", color=self.text_color),
                 ),
             ],
             on_change=self._on_navigation_change,
-            bgcolor=ft.colors.GREY_100,
+            bgcolor=self.nav_rail_bg_color, # Color de fondo mejorado
+            # border_radius=ft.border_radius.all(10) # No soportado directamente
         )
 
-        # Barra superior para la vista de administrador
-        self.page.appbar = ft.AppBar(
-            leading=ft.Icon(ft.icons.SETTINGS, size=30),
+        # Barra superior para la vista de administrador - ASIGNADA A LA VISTA
+        self.appbar = ft.AppBar( # CAMBIO CLAVE: self.page.appbar -> self.appbar
+            leading=ft.Icon(ft.icons.SETTINGS, size=30, color=self.text_color),
             leading_width=40,
-            title=ft.Text("Panel de Administración", weight=ft.FontWeight.BOLD),
+            title=ft.Text("Panel de Administración", weight=ft.FontWeight.BOLD, color=self.text_color),
             center_title=False,
-            bgcolor=ft.colors.BLUE_GREY_900,
+            bgcolor=self.appbar_bg_color,
             actions=[
-                ft.IconButton(ft.icons.LOGOUT, tooltip="Cerrar Sesión", on_click=self._logout),
+                ft.IconButton(ft.icons.LOGOUT, tooltip="Cerrar Sesión", on_click=self._logout, icon_color=self.text_color),
             ],
             toolbar_height=70,
             elevation=4
@@ -125,25 +156,61 @@ class AdminView(ft.View):
             ft.Row(
                 [
                     self.navigation_rail,
-                    ft.VerticalDivider(width=1),
+                    ft.VerticalDivider(width=1, color=ft.colors.BLUE_GREY_700),
                     self.admin_content_area,
                 ],
                 expand=True,
             )
         ]
         
-        # Cargar la sección de dashboard por defecto
-        self._load_dashboard_section()
+        # Cargar la sección inicial según el estado de login
+        # Ya no se llama a _load_initial_admin_section aquí,
+        # la MainView se encargará de establecer is_logged_in y luego cargar el dashboard.
+        # No se llama a .update() dentro de esta función ni en las que llama directamente.
+        # self._load_initial_admin_section() # Eliminado. La MainView activará la carga del dashboard.
+
+    def _load_initial_admin_section(self):
+        """Carga la sección de login o el dashboard si ya está logueado.
+           Ahora esta función es llamada externamente por MainView."""
+        logger.info("Cargando sección inicial del panel de administración (llamado externo).")
+        if self.is_logged_in:
+            self._load_dashboard_section()
+        else:
+            self._load_admin_login_form()
+        # El page.update() en main.py o la llamada externa se encargará de esto.
 
     def _logout(self, e):
         """Cierra la sesión del administrador y regresa a la vista principal."""
+        logger.info("Cerrando sesión de administrador.")
+        self.is_logged_in = False # Establecer el estado a no logueado
         show_snackbar(self.page, "Sesión de administrador cerrada.", ft.colors.AMBER_700)
-        # Aquí se debería redirigir a la vista principal o a la pantalla de login del cliente
-        self.page.go("/") # Redirige a la ruta principal de la aplicación
-        self.page.update()
+        
+        # Limpiar campos de login (sin llamar a .update() individualmente)
+        self.admin_username_field.value = ""
+        self.admin_password_field.value = ""
+
+        # Recargar el formulario de login en AdminView al hacer logout
+        self._load_admin_login_form() 
+        self.navigation_rail.selected_index = None # Deseleccionar cualquier opción
+        
+        # Redirige a la ruta principal de la aplicación.
+        # Esto automáticamente limpiará la vista actual y cargará la MainView.
+        self.page.go("/") 
+        self.page.update() # Actualiza la página completa, incluyendo la nueva vista
 
     def _on_navigation_change(self, e):
         """Maneja el cambio de selección en la barra de navegación lateral del administrador."""
+        logger.info(f"Navegación de administrador seleccionada: {e.control.selected_index}")
+        # Solo permitir navegación si el administrador está logueado
+        if not self.is_logged_in:
+            logger.warning("Intento de navegación sin sesión iniciada en AdminView.")
+            show_snackbar(self.page, "Por favor, inicia sesión para acceder a las funciones de administración.", ft.colors.RED_500)
+            self._load_admin_login_form() # Siempre redirige al formulario de login
+            self.navigation_rail.selected_index = None # Deseleccionar cualquier opción
+            self.admin_content_area.update() # Mantenemos update aquí, ya que la vista ya debería estar en la página
+            self.page.update()
+            return
+
         self.navigation_rail.selected_index = e.control.selected_index
         if self.navigation_rail.selected_index == 0:
             self._load_dashboard_section()
@@ -160,15 +227,78 @@ class AdminView(ft.View):
         elif self.navigation_rail.selected_index == 6:
             self._load_admin_management()
         
-        self.admin_content_area.update()
+        self.admin_content_area.update() # Mantenemos update aquí, ya que la vista ya debería estar en la página
         self.page.update()
 
-    # --- Secciones de Gestión ---
+    # --- Sección de Login de Administrador ---
+    def _load_admin_login_form(self):
+        """Carga el formulario de inicio de sesión de administrador."""
+        logger.info("Cargando formulario de login de administrador.")
+        self.admin_content_area.controls.clear()
+        self.admin_content_area.controls.append(
+            CustomCard(
+                title="⚙️ Acceso de Administrador ⚙️",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
+                content=ft.Column([
+                    ft.Text("Por favor, introduce tus credenciales de administrador.", size=16, color=self.text_color),
+                    self.admin_username_field, # Usamos la referencia a los campos
+                    self.admin_password_field, # Usamos la referencia a los campos
+                    ft.ElevatedButton(
+                        "Iniciar Sesión como Administrador",
+                        icon=ft.icons.LOGIN,
+                        on_click=self._admin_login_from_admin_view # Llama al nuevo método de login para esta vista
+                    )
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
+                width=400
+            )
+        )
+        # Se eliminó la llamada a update aquí porque page.update() en el route_change de main.py
+        # es quien finalmente actualiza la vista después de que se añade.
+        # self.admin_content_area.update() # Eliminado.
+
+    def _admin_login_from_admin_view(self, e):
+        """
+        Maneja la lógica de inicio de sesión del administrador cuando se intenta desde AdminView.
+        """
+        username = self.admin_username_field.value
+        password = self.admin_password_field.value
+
+        logger.info(f"Intento de login (desde AdminView) para usuario: {username}")
+
+        if not username or not password:
+            show_snackbar(self.page, "Por favor, ingresa usuario y contraseña.", ft.colors.RED_500)
+            logger.warning("Intento de login (desde AdminView) fallido: campos vacíos.")
+            return
+
+        admin_user = self.administrador_service.get_administrador_by_usuario(username)
+
+        if admin_user and self.administrador_service.check_password(password, admin_user.contrasena_hash):
+            self.is_logged_in = True # Marcar como logueado
+            logger.info(f"Login exitoso (desde AdminView) para el usuario: {username}")
+            show_snackbar(self.page, f"¡Bienvenido, {admin_user.usuario}! Sesión iniciada.", ft.colors.GREEN_500)
+            self._load_dashboard_section() # Cargar el dashboard después del login
+            self.navigation_rail.selected_index = 0 # Asegurarse de que el dashboard esté seleccionado
+        else:
+            logger.warning(f"Login (desde AdminView) fallido para el usuario: {username}. Credenciales incorrectas.")
+            show_snackbar(self.page, "Usuario o contraseña incorrectos.", ft.colors.RED_500)
+        self.admin_content_area.update() # Mantenemos update aquí para el caso de fallo y éxito,
+                                         # ya que la vista ya está en la página después del primer render.
+        self.page.update()
+
+    # --- Secciones de Gestión (Solo accesibles si is_logged_in es True) ---
 
     def _load_dashboard_section(self):
         """
         Carga la sección del Dashboard con un resumen rápido.
         """
+        logger.info("Cargando sección de Dashboard de administrador.")
+        # Solo cargar si está logueado
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            logger.warning("Intento de acceso a Dashboard sin sesión iniciada.")
+            return
+        
         self.admin_content_area.controls.clear()
 
         # Datos de ejemplo o fetched de servicios
@@ -191,50 +321,55 @@ class AdminView(ft.View):
         
         self.admin_content_area.controls.append(
             ft.Column([
-                ft.Text("Dashboard de Administración", size=28, weight=ft.FontWeight.BOLD),
-                ft.Divider(),
+                ft.Text("Dashboard de Administración", size=28, weight=ft.FontWeight.BOLD, color=self.text_color),
+                ft.Divider(color=ft.colors.BLUE_GREY_700),
                 ft.Row([
                     CustomCard(
                         title="Clientes Registrados",
-                        content=ft.Text(str(num_clientes), size=40, weight=ft.FontWeight.BOLD),
-                        width=250, height=150
+                        content=ft.Text(str(num_clientes), size=40, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        width=250, height=150, bgcolor=self.card_bg_color, title_color=self.text_color
                     ),
                     CustomCard(
                         title="Pedidos Pendientes",
-                        content=ft.Text(str(num_pedidos_pendientes), size=40, weight=ft.FontWeight.BOLD),
-                        width=250, height=150
+                        content=ft.Text(str(num_pedidos_pendientes), size=40, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        width=250, height=150, bgcolor=self.card_bg_color, title_color=self.text_color
                     ),
                     CustomCard(
                         title="Ingresos Hoy",
-                        content=ft.Text(f"${ingresos_hoy:,.2f}", size=40, weight=ft.FontWeight.BOLD),
-                        width=250, height=150
+                        content=ft.Text(f"${ingresos_hoy:,.2f}", size=40, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        width=250, height=150, bgcolor=self.card_bg_color, title_color=self.text_color
                     ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
                     CustomCard(
                         title="Gastos Hoy",
-                        content=ft.Text(f"${gastos_hoy:,.2f}", size=40, weight=ft.FontWeight.BOLD),
-                        width=250, height=150
+                        content=ft.Text(f"${gastos_hoy:,.2f}", size=40, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        width=250, height=150, bgcolor=self.card_bg_color, title_color=self.text_color
                     ),
                     CustomCard(
                         title="Balance Hoy",
-                        content=ft.Text(f"${balance_hoy:,.2f}", size=40, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700 if balance_hoy >= 0 else ft.colors.RED_700),
-                        width=250, height=150
+                        content=ft.Text(f"${balance_hoy:,.2f}", size=30, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700 if balance_hoy >= 0 else ft.colors.RED_700),
+                        width=200, height=120, bgcolor=self.card_bg_color, title_color=self.text_color
                     ),
                     CustomCard(
                         title="Pedidos Completados",
-                        content=ft.Text(str(num_pedidos_completados), size=40, weight=ft.FontWeight.BOLD),
-                        width=250, height=150
+                        content=ft.Text(str(num_pedidos_completados), size=40, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        width=250, height=150, bgcolor=self.card_bg_color, title_color=self.text_color
                     ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
-                create_simple_bar_chart(sales_data, "Ventas de la Semana (Ejemplo)")
+                create_simple_bar_chart(sales_data, "Ventas de la Semana (Ejemplo)", text_color=self.text_color, bar_color=ft.colors.GREEN_400, card_bgcolor=self.card_bg_color, title_color=self.text_color)
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             expand=True)
         )
+        # No self.admin_content_area.update() aquí.
 
     def _load_menu_management(self):
         """Carga la sección para gestionar el menú (categorías e ítems)."""
+        logger.info("Cargando sección de gestión de Menú.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
         self.admin_content_area.controls.clear()
         
         # --- Gestión de Categorías ---
@@ -248,9 +383,15 @@ class AdminView(ft.View):
         self.admin_content_area.controls.append(
             CustomCard(
                 title="🍕 Gestión de Categorías del Menú 🍕",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Aquí puedes añadir, editar o eliminar categorías del menú.", size=16),
-                    create_data_table(cat_columns, cat_rows),
+                    ft.Text("Aquí puedes añadir, editar o eliminar categorías del menú.", size=16, color=self.text_color),
+                    create_data_table(cat_columns, cat_rows,
+                                      heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                                      data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                                      border_color=ft.colors.BLUE_GREY_700,
+                                      text_color=self.text_color),
                     ft.Row([
                         ft.ElevatedButton("Añadir Categoría", on_click=self._open_add_edit_categoria_dialog),
                         # ft.ElevatedButton("Editar Categoría", on_click=self._open_add_edit_categoria_dialog), # Implementar edición
@@ -277,9 +418,15 @@ class AdminView(ft.View):
         self.admin_content_area.controls.append(
             CustomCard(
                 title="🍔 Gestión de Ítems del Menú 🍟",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Aquí puedes gestionar los ítems específicos de tu menú.", size=16),
-                    create_data_table(item_columns, item_rows),
+                    ft.Text("Aquí puedes gestionar los ítems específicos de tu menú.", size=16, color=self.text_color),
+                    create_data_table(item_columns, item_rows,
+                                      heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                                      data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                                      border_color=ft.colors.BLUE_GREY_700,
+                                      text_color=self.text_color),
                     ft.Row([
                         ft.ElevatedButton("Añadir Ítem", on_click=self._open_add_edit_item_dialog),
                         # ft.ElevatedButton("Editar Ítem", on_click=self._open_add_edit_item_dialog), # Implementar edición
@@ -289,28 +436,39 @@ class AdminView(ft.View):
                 width=1000
             )
         )
+        self.admin_content_area.update()
     
     def _open_add_edit_categoria_dialog(self, e):
         """Abre un diálogo para añadir o editar una categoría."""
-        nombre_field = ft.TextField(label="Nombre de la Categoría", required=True)
-        descripcion_field = ft.TextField(label="Descripción (opcional)", multiline=True)
+        logger.info("Abriendo diálogo para añadir/editar categoría.")
+        # Solo cargar si está logueado
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        nombre_field = ft.TextField(label="Nombre de la Categoría", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        descripcion_field = ft.TextField(label="Descripción (opcional)", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
 
         def save_categoria(e):
+            logger.info("Intentando guardar nueva categoría.")
             if not nombre_field.value:
                 show_snackbar(self.page, "El nombre de la categoría es requerido.", ft.colors.RED_500)
+                logger.warning("Fallo al guardar categoría: nombre vacío.")
                 return
 
             new_cat = self.menu_service.add_categoria(nombre_field.value, descripcion_field.value)
             if new_cat:
                 show_snackbar(self.page, f"Categoría '{new_cat.nombre}' añadida con éxito.", ft.colors.GREEN_500)
+                logger.info(f"Categoría '{new_cat.nombre}' añadida con éxito (ID: {new_cat.id}).")
                 self.page.close_dialog(dialog) # Cierra el diálogo
                 self._load_menu_management() # Recarga la sección para mostrar los cambios
             else:
                 show_snackbar(self.page, "Error al añadir la categoría.", ft.colors.RED_500)
+                logger.error("Error al añadir la categoría.")
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Añadir Nueva Categoría"),
+            title=ft.Text("Añadir Nueva Categoría", color=self.text_color),
             content=ft.Column([
                 nombre_field,
                 descripcion_field
@@ -320,6 +478,7 @@ class AdminView(ft.View):
                 ft.ElevatedButton("Guardar", on_click=save_categoria)
             ],
             actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color, # Fondo del diálogo
             shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
         )
         self.page.dialog = dialog
@@ -328,29 +487,44 @@ class AdminView(ft.View):
 
     def _open_add_edit_item_dialog(self, e):
         """Abre un diálogo para añadir o editar un ítem del menú."""
-        nombre_field = ft.TextField(label="Nombre del Ítem", required=True)
-        descripcion_field = ft.TextField(label="Descripción (opcional)", multiline=True)
-        precio_field = ft.TextField(label="Precio", keyboard_type=ft.KeyboardType.NUMBER, required=True)
-        imagen_url_field = ft.TextField(label="URL de Imagen (opcional)")
-        disponible_checkbox = ft.Checkbox(label="Disponible", value=True)
+        logger.info("Abriendo diálogo para añadir/editar ítem del menú.")
+        # Solo cargar si está logueado
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        nombre_field = ft.TextField(label="Nombre del Ítem", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        descripcion_field = ft.TextField(label="Descripción (opcional)", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        precio_field = ft.TextField(label="Precio", keyboard_type=ft.KeyboardType.NUMBER, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        imagen_url_field = ft.TextField(label="URL de Imagen (opcional)", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        disponible_checkbox = ft.Checkbox(label="Disponible", value=True, check_color=ft.colors.WHITE, fill_color=ft.colors.BLUE_GREY_700, label_style=ft.TextStyle(color=self.text_color)) # Estilos para modo oscuro
 
         categorias = self.menu_service.get_all_categorias()
         categoria_dropdown_options = [ft.dropdown.Option(str(c.id), c.nombre) for c in categorias]
         categoria_dropdown = ft.Dropdown(
             label="Categoría",
             options=categoria_dropdown_options,
-            required=True
+            filled=True,
+            fill_color=self.textfield_fill_color,
+            color=self.text_color,
+            label_style=ft.TextStyle(color=ft.colors.WHITE54),
+            hint_style=ft.TextStyle(color=ft.colors.WHITE54),
+            dropdown_color=self.card_bg_color, # Fondo del desplegable
+            text_style=ft.TextStyle(color=self.text_color)
         )
 
         def save_item(e):
+            logger.info("Intentando guardar nuevo ítem del menú.")
             try:
                 precio = float(precio_field.value)
             except ValueError:
                 show_snackbar(self.page, "El precio debe ser un número válido.", ft.colors.RED_500)
+                logger.warning("Fallo al guardar ítem: precio inválido.")
                 return
 
             if not nombre_field.value or not categoria_dropdown.value:
                 show_snackbar(self.page, "Nombre y Categoría son requeridos.", ft.colors.RED_500)
+                logger.warning("Fallo al guardar ítem: nombre o categoría vacíos.")
                 return
 
             new_item = self.menu_service.add_item_menu(
@@ -363,14 +537,16 @@ class AdminView(ft.View):
             )
             if new_item:
                 show_snackbar(self.page, f"Ítem '{new_item.nombre}' añadido con éxito.", ft.colors.GREEN_500)
+                logger.info(f"Ítem '{new_item.nombre}' añadido con éxito (ID: {new_item.id}).")
                 self.page.close_dialog(dialog)
                 self._load_menu_management()
             else:
                 show_snackbar(self.page, "Error al añadir el ítem.", ft.colors.RED_500)
+                logger.error("Error al añadir el ítem del menú.")
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Añadir Nuevo Ítem al Menú"),
+            title=ft.Text("Añadir Nuevo Ítem al Menú", color=self.text_color),
             content=ft.Column([
                 nombre_field,
                 descripcion_field,
@@ -384,6 +560,7 @@ class AdminView(ft.View):
                 ft.ElevatedButton("Guardar", on_click=save_item)
             ],
             actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color, # Fondo del diálogo
             shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
         )
         self.page.dialog = dialog
@@ -392,6 +569,10 @@ class AdminView(ft.View):
 
     def _load_client_management(self):
         """Carga la sección para gestionar clientes."""
+        logger.info("Cargando sección de gestión de Clientes.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
         self.admin_content_area.controls.clear()
         
         clientes = self.cliente_service.get_all_clientes()
@@ -408,10 +589,16 @@ class AdminView(ft.View):
 
         self.admin_content_area.controls.append(
             CustomCard(
-                title="👥 Gestión de Clientes 👥",
+                title="👥 Gestión de Clientes �",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Gestiona los clientes registrados en tu pizzería.", size=16),
-                    create_data_table(client_columns, client_rows),
+                    ft.Text("Gestiona los clientes registrados en tu pizzería.", size=16, color=self.text_color),
+                    create_data_table(client_columns, client_rows,
+                                      heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                                      data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                                      border_color=ft.colors.BLUE_GREY_700,
+                                      text_color=self.text_color),
                     ft.Row([
                         # ft.ElevatedButton("Añadir Cliente", on_click=lambda e: show_snackbar(self.page, "Añadir cliente - implementar.")),
                         # ft.ElevatedButton("Editar Cliente", on_click=lambda e: show_snackbar(self.page, "Editar cliente - implementar.")),
@@ -421,9 +608,14 @@ class AdminView(ft.View):
                 width=1000
             )
         )
+        self.admin_content_area.update()
 
     def _load_order_management(self):
         """Carga la sección para gestionar pedidos."""
+        logger.info("Cargando sección de gestión de Pedidos.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
         self.admin_content_area.controls.clear()
         
         pedidos = self.pedido_service.get_all_pedidos()
@@ -441,9 +633,15 @@ class AdminView(ft.View):
         self.admin_content_area.controls.append(
             CustomCard(
                 title="📋 Gestión de Pedidos 📋",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Monitorea y gestiona el estado de todos los pedidos.", size=16),
-                    create_data_table(order_columns, order_rows),
+                    ft.Text("Monitorea y gestiona el estado de todos los pedidos.", size=16, color=self.text_color),
+                    create_data_table(order_columns, order_rows,
+                                      heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                                      data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                                      border_color=ft.colors.BLUE_GREY_700,
+                                      text_color=self.text_color),
                     ft.Row([
                         # ft.ElevatedButton("Ver Detalles", on_click=lambda e: show_snackbar(self.page, "Ver detalles de pedido - implementar.")),
                         # ft.ElevatedButton("Actualizar Estado", on_click=lambda e: show_snackbar(self.page, "Actualizar estado de pedido - implementar.")),
@@ -453,9 +651,14 @@ class AdminView(ft.View):
                 width=1000
             )
         )
+        self.admin_content_area.update()
 
     def _load_finance_management(self):
         """Carga la sección para gestionar las finanzas (ingresos/gastos)."""
+        logger.info("Cargando sección de gestión de Finanzas.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
         self.admin_content_area.controls.clear()
         
         registros = self.financiero_service.get_all_registros_financieros()
@@ -472,6 +675,10 @@ class AdminView(ft.View):
         # Calcular totales (ejemplo para el mes actual)
         today = date.today()
         first_day_of_month = date(today.year, today.month, 1)
+        # Esto es una simplificación, para un mes exacto se podría usar:
+        # import calendar
+        # _, last_day = calendar.monthrange(today.year, today.month)
+        # last_day_of_month = date(today.year, today.month, last_day)
         last_day_of_month = date(today.year, today.month, 28) # Simplificado, mejor usar calendar.monthrange
         
         total_ingresos_mes = self.financiero_service.get_total_ingresos(first_day_of_month, last_day_of_month)
@@ -482,27 +689,33 @@ class AdminView(ft.View):
         self.admin_content_area.controls.append(
             CustomCard(
                 title="💰 Gestión de Finanzas 📊",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Registros de ingresos y gastos de la pizzería.", size=16),
+                    ft.Text("Registros de ingresos y gastos de la pizzería.", size=16, color=self.text_color),
                     ft.Row([
                         CustomCard(
                             title=f"Ingresos {today.strftime('%B')}",
-                            content=ft.Text(f"${total_ingresos_mes:,.2f}", size=30, weight=ft.FontWeight.BOLD),
-                            width=200, height=120
+                            content=ft.Text(f"${total_ingresos_mes:,.2f}", size=30, weight=ft.FontWeight.BOLD, color=self.text_color),
+                            width=200, height=120, bgcolor=self.card_bg_color, title_color=self.text_color
                         ),
                         CustomCard(
                             title=f"Gastos {today.strftime('%B')}",
-                            content=ft.Text(f"${total_gastos_mes:,.2f}", size=30, weight=ft.FontWeight.BOLD),
-                            width=200, height=120
+                            content=ft.Text(f"${total_gastos_mes:,.2f}", size=30, weight=ft.FontWeight.BOLD, color=self.text_color),
+                            width=200, height=120, bgcolor=self.card_bg_color, title_color=self.text_color
                         ),
                         CustomCard(
                             title=f"Balance {today.strftime('%B')}",
                             content=ft.Text(f"${balance_mes:,.2f}", size=30, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700 if balance_mes >= 0 else ft.colors.RED_700),
-                            width=200, height=120
+                            width=200, height=120, bgcolor=self.card_bg_color, title_color=self.text_color
                         ),
                     ], alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Divider(),
-                    create_data_table(finance_columns, finance_rows),
+                    ft.Divider(color=ft.colors.BLUE_GREY_700),
+                    create_data_table(finance_columns, finance_rows,
+                                      heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                                      data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                                      border_color=ft.colors.BLUE_GREY_700,
+                                      text_color=self.text_color),
                     ft.Row([
                         # ft.ElevatedButton("Añadir Registro", on_click=lambda e: show_snackbar(self.page, "Añadir registro financiero - implementar.")),
                         # ft.ElevatedButton("Editar Registro", on_click=lambda e: show_snackbar(self.page, "Editar registro financiero - implementar.")),
@@ -512,77 +725,111 @@ class AdminView(ft.View):
                 width=1000
             )
         )
+        self.admin_content_area.update()
 
     def _load_pizzeria_info_management(self):
         """Carga la sección para gestionar la información de la pizzería."""
+        logger.info("Cargando sección de gestión de Información de Pizzería.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
         self.admin_content_area.controls.clear()
         
         info = self.pizzeria_info_service.get_pizzeria_info()
         
-        nombre_field = ft.TextField(label="Nombre de la Pizzería", value=info.nombre_pizzeria if info else "", required=True)
-        direccion_field = ft.TextField(label="Dirección", value=info.direccion if info else "", multiline=True, required=True)
-        telefono_field = ft.TextField(label="Teléfono", value=info.telefono if info else "", required=True)
-        email_field = ft.TextField(label="Email de Contacto", value=info.email_contacto if info else "")
-        horario_field = ft.TextField(label="Horario de Atención", value=info.horario_atencion if info else "", multiline=True)
-        facebook_field = ft.TextField(label="URL Facebook", value=info.red_social_facebook if info else "")
-        instagram_field = ft.TextField(label="URL Instagram", value=info.red_social_instagram if info else "")
-
-        def save_pizzeria_info(e):
-            if not nombre_field.value or not direccion_field.value or not telefono_field.value:
-                show_snackbar(self.page, "Nombre, Dirección y Teléfono son requeridos.", ft.colors.RED_500)
-                return
-
-            if info: # Si ya existe, actualiza
-                info.nombre_pizzeria = nombre_field.value
-                info.direccion = direccion_field.value
-                info.telefono = telefono_field.value
-                info.email_contacto = email_field.value
-                info.horario_atencion = horario_field.value
-                info.red_social_facebook = facebook_field.value
-                info.red_social_instagram = instagram_field.value
-                updated_info = self.pizzeria_info_service.update_pizzeria_info(info)
-                if updated_info:
-                    show_snackbar(self.page, "Información de la pizzería actualizada con éxito.", ft.colors.GREEN_500)
-                else:
-                    show_snackbar(self.page, "Error al actualizar la información.", ft.colors.RED_500)
-            else: # Si no existe, añade una nueva
-                new_info = self.pizzeria_info_service.add_pizzeria_info(
-                    nombre_pizzeria=nombre_field.value,
-                    direccion=direccion_field.value,
-                    telefono=telefono_field.value,
-                    email_contacto=email_field.value,
-                    horario_atencion=horario_field.value,
-                    red_social_facebook=facebook_field.value,
-                    red_social_instagram=instagram_field.value
-                )
-                if new_info:
-                    show_snackbar(self.page, "Información de la pizzería añadida con éxito.", ft.colors.GREEN_500)
-                    # Recargar la sección para que los campos se muestren con los nuevos valores
-                    self._load_pizzeria_info_management()
-                else:
-                    show_snackbar(self.page, "Error al añadir la información inicial.", ft.colors.RED_500)
-            self.page.update()
+        # Asigna los valores actuales de la información de la pizzería a los campos de texto
+        self.pizzeria_name_field.value = info.nombre_pizzeria if info else ""
+        self.pizzeria_address_field.value = info.direccion if info else ""
+        self.pizzeria_phone_field.value = info.telefono if info else ""
+        self.pizzeria_email_field.value = info.email_contacto if info else ""
+        self.pizzeria_hours_field.value = info.horario_atencion if info else ""
+        self.pizzeria_facebook_field.value = info.red_social_facebook if info else ""
+        self.pizzeria_instagram_field.value = info.red_social_instagram if info else ""
 
         self.admin_content_area.controls.append(
             CustomCard(
                 title="🏢 Gestión de Información de la Pizzería 📋",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Actualiza la información visible al público de tu pizzería.", size=16),
-                    nombre_field,
-                    direccion_field,
-                    telefono_field,
-                    email_field,
-                    horario_field,
-                    facebook_field,
-                    instagram_field,
-                    ft.ElevatedButton("Guardar Cambios", on_click=save_pizzeria_info)
+                    self.pizzeria_name_field,
+                    self.pizzeria_address_field,
+                    self.pizzeria_phone_field,
+                    self.pizzeria_email_field,
+                    self.pizzeria_hours_field,
+                    self.pizzeria_facebook_field,
+                    self.pizzeria_instagram_field,
+                    ft.ElevatedButton("Guardar Cambios", on_click=self._save_pizzeria_info) # Nuevo método para guardar
                 ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=15),
                 width=600
             )
         )
+        # No self.admin_content_area.update() aquí.
+
+    def _save_pizzeria_info(self, e):
+        """Método para guardar la información de la pizzería."""
+        logger.info("Intentando guardar información de la pizzería.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        # Acceder a los valores directamente desde los atributos de la instancia
+        nombre_pizzeria = self.pizzeria_name_field.value
+        direccion = self.pizzeria_address_field.value
+        telefono = self.pizzeria_phone_field.value
+        email_contacto = self.pizzeria_email_field.value
+        horario_atencion = self.pizzeria_hours_field.value
+        red_social_facebook = self.pizzeria_facebook_field.value
+        red_social_instagram = self.pizzeria_instagram_field.value
+
+        if not nombre_pizzeria or not direccion or not telefono:
+            show_snackbar(self.page, "Nombre, Dirección y Teléfono son requeridos.", ft.colors.RED_500)
+            logger.warning("Fallo al guardar información de pizzería: campos requeridos vacíos.")
+            return
+
+        info = self.pizzeria_info_service.get_pizzeria_info()
+
+        if info: # Si ya existe, actualiza
+            info.nombre_pizzeria = nombre_pizzeria
+            info.direccion = direccion
+            info.telefono = telefono
+            info.email_contacto = email_contacto
+            info.horario_atencion = horario_atencion
+            info.red_social_facebook = red_social_facebook
+            info.red_social_instagram = red_social_instagram
+            updated_info = self.pizzeria_info_service.update_pizzeria_info(info)
+            if updated_info:
+                show_snackbar(self.page, "Información de la pizzería actualizada con éxito.", ft.colors.GREEN_500)
+                logger.info("Información de la pizzería actualizada con éxito.")
+            else:
+                show_snackbar(self.page, "Error al actualizar la información.", ft.colors.RED_500)
+                logger.error("Error al actualizar la información de la pizzería.")
+        else: # Si no existe, añade una nueva
+            new_info = self.pizzeria_info_service.add_pizzeria_info(
+                nombre_pizzeria=nombre_pizzeria,
+                direccion=direccion,
+                telefono=telefono,
+                email_contacto=email_contacto,
+                horario_atencion=horario_atencion,
+                red_social_facebook=red_social_facebook,
+                red_social_instagram=red_social_instagram
+            )
+            if new_info:
+                show_snackbar(self.page, "Información de la pizzería añadida con éxito.", ft.colors.GREEN_500)
+                logger.info("Información de la pizzería añadida con éxito (primera vez).")
+                # Recargar la sección para que los campos se muestren con los nuevos valores
+                self._load_pizzeria_info_management()
+            else:
+                show_snackbar(self.page, "Error al añadir la información inicial.", ft.colors.RED_500)
+                logger.error("Error al añadir la información inicial de la pizzería.")
+        self.page.update()
 
     def _load_admin_management(self):
         """Carga la sección para gestionar otros administradores (solo para super-admins)."""
+        logger.info("Cargando sección de gestión de Administradores.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
         self.admin_content_area.controls.clear()
         
         admins = self.administrador_service.get_all_administradores()
@@ -595,9 +842,15 @@ class AdminView(ft.View):
         self.admin_content_area.controls.append(
             CustomCard(
                 title="⚙️ Gestión de Administradores 👤",
+                title_color=self.text_color,
+                bgcolor=self.card_bg_color,
                 content=ft.Column([
-                    ft.Text("Administra las cuentas con acceso al panel de control.", size=16),
-                    create_data_table(admin_columns, admin_rows),
+                    ft.Text("Administra las cuentas con acceso al panel de control.", size=16, color=self.text_color),
+                    create_data_table(admin_columns, admin_rows,
+                                      heading_row_bgcolor=ft.colors.BLUE_GREY_700,
+                                      data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
+                                      border_color=ft.colors.BLUE_GREY_700,
+                                      text_color=self.text_color),
                     ft.Row([
                         # ft.ElevatedButton("Añadir Admin", on_click=lambda e: show_snackbar(self.page, "Añadir admin - implementar.")),
                         # ft.ElevatedButton("Editar Admin", on_click=lambda e: show_snackbar(self.page, "Editar admin - implementar.")),
@@ -607,61 +860,4 @@ class AdminView(ft.View):
                 width=800
             )
         )
-
-# Para usar esta vista, tu main.py debería verse algo así:
-# import flet as ft
-# from sqlalchemy import create_engine
-# from sqlalchemy.orm import sessionmaker
-# from config import Config
-# from core.models import Base
-# from views.main_view import MainView # Importa la vista principal también
-# from views.admin_view import AdminView
-#
-# # Importar todos los servicios
-# from services.cliente_service import ClienteService
-# from services.menu_service import MenuService
-# from services.pedido_service import PedidoService
-# from services.financiero_service import FinancieroService
-# from services.pizzeria_info_service import PizzeriaInfoService
-# from services.administrador_service import AdministradorService
-#
-# def main(page: ft.Page):
-#     # Configuración de la base de datos
-#     engine = create_engine(Config.DATABASE_URL)
-#     Base.metadata.create_all(engine)
-#     Session = sessionmaker(bind=engine)
-#
-#     # Instanciar servicios
-#     cliente_service = ClienteService(Session)
-#     menu_service = MenuService(Session)
-#     pedido_service = PedidoService(Session)
-#     financiero_service = FinancieroService(Session)
-#     pizzeria_info_service = PizzeriaInfoService(Session)
-#     administrador_service = AdministradorService(Session)
-#
-#     # Crear instancias de las vistas, pasando los servicios
-#     main_view_instance = MainView(page)
-#     # Pasa las instancias de los servicios a AdminView
-#     admin_view_instance = AdminView(page, cliente_service, menu_service, pedido_service,
-#                                     financiero_service, pizzeria_info_service, administrador_service)
-#
-#     def view_pop(view):
-#         page.views.pop()
-#         top_view = page.views[-1]
-#         page.go(top_view.route)
-#
-#     def route_change(route):
-#         page.views.clear()
-#         if page.route == "/":
-#             page.views.append(main_view_instance)
-#         elif page.route == "/admin":
-#             page.views.append(admin_view_instance)
-#         # Otras rutas si las tienes
-#         page.update()
-#
-#     page.on_route_change = route_change
-#     page.on_view_pop = view_pop
-#     page.go(page.route) # Asegura que la ruta inicial se maneje correctamente
-#
-# if __name__ == "__main__":
-#     ft.app(target=main)
+        self.admin_content_area.update()
