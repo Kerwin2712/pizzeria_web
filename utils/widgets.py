@@ -117,7 +117,7 @@ def show_snackbar(page: ft.Page, message: str, color: str = ft.colors.GREEN_500,
         open=True,
         bgcolor=color,
         duration=3000, # 3 segundos
-        show_close_button=True,
+        show_close_icon=True, # CAMBIO AQUÍ: de show_close_button a show_close_icon
         action="Cerrar",
         padding=15,
         margin=10,
@@ -270,4 +270,3 @@ def create_simple_bar_chart(data_points: dict, title: str = "Gráfico", text_col
         bgcolor=card_bgcolor, # Pasa el color de fondo a la tarjeta
         title_color=title_color # Pasa el color del título
     )
-
