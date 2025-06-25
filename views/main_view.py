@@ -55,6 +55,20 @@ class MainView(ft.View):
         # Define el NavRail y su contenido
         self.navigation_rail = self._create_navigation_rail()
 
+        # Define el AppBar
+        self.appbar = ft.AppBar(
+            title=ft.Text("Pizzería Acme", color=ft.colors.WHITE),
+            center_title=True,
+            bgcolor=ft.colors.BLUE_GREY_900,
+            actions=[
+                ft.IconButton(
+                    icon=ft.icons.INFO_OUTLINE,
+                    tooltip="Acerca de",
+                    on_click=lambda e: show_snackbar(self.page, "Aplicación de Pizzería Flet v1.0", ft.colors.BLUE_GREY_500)
+                ),
+            ]
+        )
+
         # Define el área de contenido principal
         self.main_content_area = ft.Column(
             [
@@ -69,6 +83,7 @@ class MainView(ft.View):
 
         # Define el layout general de la vista
         self.controls = [
+            self.appbar, # Agregamos el AppBar aquí
             ft.Row(
                 [
                     self.navigation_rail,
@@ -118,21 +133,30 @@ class MainView(ft.View):
             on_change=self._on_navigation_rail_change,
         )
 
-    def _on_navigation_rail_change(self, e: ft.ControlEvent):
-        """Maneja el cambio de selección en el NavRail."""
-        logger.info(f"Navegación seleccionada: {e.control.selected_index}")
-        if e.control.selected_index == 0:
+    def _on_navigation_rail_change(self, e):
+        """Maneja el cambio de selección en el NavRail.
+        
+        Modificado para aceptar directamente el índice o un objeto de evento.
+        """
+        # Verifica si e es un entero (directamente el índice) o un objeto ControlEvent
+        if isinstance(e, int):
+            selected_index = e
+        else: # Asume que es un ControlEvent
+            selected_index = e.control.selected_index
+        
+        logger.info(f"Navegación seleccionada: {selected_index}")
+        if selected_index == 0:
             self._load_home_section()
-        elif e.control.selected_index == 1:
+        elif selected_index == 1:
             show_snackbar(self.page, "Sección de Menú - ¡Implementar!")
             self._load_menu_section() # Puedes definir esta función
-        elif e.control.selected_index == 2:
+        elif selected_index == 2:
             show_snackbar(self.page, "Sección de Pedidos - ¡Implementar!")
             self._load_orders_section() # Puedes definir esta función
-        elif e.control.selected_index == 3:
+        elif selected_index == 3:
             show_snackbar(self.page, "Sección de Clientes - ¡Implementar!")
             self._load_customers_section() # Puedes definir esta función
-        elif e.control.selected_index == 4:
+        elif selected_index == 4:
             self._load_admin_section()
         self.page.update()
 
@@ -148,7 +172,8 @@ class MainView(ft.View):
                     [
                         ft.Text("Explora nuestro delicioso menú o gestiona tu pedido.", size=16, color=self.text_color),
                         ft.Text("¡Tu destino favorito para las mejores pizzas!", size=16, color=self.text_color),
-                        ft.ElevatedButton("Ver Menú", on_click=lambda e: self._on_navigation_rail_change(ft.ControlEvent(selected_index=1, control=self.navigation_rail))),
+                        # Modificación aquí: Pasamos directamente el índice 1
+                        ft.ElevatedButton("Ver Menú", on_click=lambda e: self._on_navigation_rail_change(1)),
                         ft.Divider(color=ft.colors.BLUE_GREY_700),
                         ft.Text("Oferta del Día:", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
                         ft.Text("¡Pizza Grande de Pepperoni con un 20% de descuento!", size=16, color=ft.colors.RED_500),
@@ -190,7 +215,8 @@ class MainView(ft.View):
                         border_color=ft.colors.BLUE_GREY_700,
                         text_color=self.text_color
                     ),
-                    ft.ElevatedButton("Hacer Pedido", on_click=lambda e: self._on_navigation_rail_change(ft.ControlEvent(selected_index=2, control=self.navigation_rail))),
+                    # Modificación aquí: Pasamos directamente el índice 2
+                    ft.ElevatedButton("Hacer Pedido", on_click=lambda e: self._on_navigation_rail_change(2)),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=800
             )
@@ -303,4 +329,3 @@ class MainView(ft.View):
             logger.warning(f"Login fallido para el usuario: {username}. Credenciales incorrectas.")
             show_snackbar(self.page, "Usuario o contraseña incorrectos.", ft.colors.RED_500)
         self.page.update()
-
