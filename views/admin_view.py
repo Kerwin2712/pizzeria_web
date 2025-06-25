@@ -372,7 +372,6 @@ class AdminView(ft.View):
             return
         self.admin_content_area.controls.clear()
         
-        # --- Gestión de Categorías ---
         categories = self.menu_service.get_all_categorias()
         cat_columns = ["ID", "Nombre", "Descripción"]
         cat_rows = []
@@ -589,7 +588,7 @@ class AdminView(ft.View):
 
         self.admin_content_area.controls.append(
             CustomCard(
-                title="👥 Gestión de Clientes �",
+                title="👥 Gestión de Clientes 👥",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
@@ -632,7 +631,7 @@ class AdminView(ft.View):
 
         self.admin_content_area.controls.append(
             CustomCard(
-                title="📋 Gestión de Pedidos 📋",
+                title="📋 Gestión de Pedidos �",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
@@ -787,20 +786,27 @@ class AdminView(ft.View):
             logger.warning("Fallo al guardar información de pizzería: campos requeridos vacíos.")
             return
 
+        # Vuelve a obtener la instancia info dentro de la misma sesión para asegurar persistencia.
         info = self.pizzeria_info_service.get_pizzeria_info()
 
         if info: # Si ya existe, actualiza
-            info.nombre_pizzeria = nombre_pizzeria
-            info.direccion = direccion
-            info.telefono = telefono
-            info.email_contacto = email_contacto
-            info.horario_atencion = horario_atencion
-            info.red_social_facebook = red_social_facebook
-            info.red_social_instagram = red_social_instagram
-            updated_info = self.pizzeria_info_service.update_pizzeria_info(info)
+            # Usar el nuevo método update_pizzeria_info_by_data
+            updated_info = self.pizzeria_info_service.update_pizzeria_info_by_data(
+                id=info.id, # Pasa el ID del objeto existente
+                nombre_pizzeria=nombre_pizzeria,
+                direccion=direccion,
+                telefono=telefono,
+                email_contacto=email_contacto,
+                horario_atencion=horario_atencion,
+                red_social_facebook=red_social_facebook,
+                red_social_instagram=red_social_instagram
+            )
             if updated_info:
                 show_snackbar(self.page, "Información de la pizzería actualizada con éxito.", ft.colors.GREEN_500)
                 logger.info("Información de la pizzería actualizada con éxito.")
+                # Actualizar el nombre de la pizzería en la MainView si está visible
+                # Esto requerirá una forma de comunicar el cambio a MainView, por ahora se quedará con el nombre inicial
+                # o se requerirá recargar la MainView. Para simplificar, Flet actualizará el texto la próxima vez que se cargue la vista.
             else:
                 show_snackbar(self.page, "Error al actualizar la información.", ft.colors.RED_500)
                 logger.error("Error al actualizar la información de la pizzería.")

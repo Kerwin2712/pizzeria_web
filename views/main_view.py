@@ -3,8 +3,9 @@ import flet as ft
 from utils.widgets import CustomCard, create_data_table, show_snackbar, show_alert_dialog, create_date_picker, create_time_picker, create_message_box, create_simple_bar_chart
 import logging # Importa el módulo logging
 
-# Importamos el servicio de administrador
+# Importamos los servicios necesarios
 from services.administrador_service import AdministradorService
+from services.pizzeria_info_service import PizzeriaInfoService # Importa el nuevo servicio
 from views.admin_view import AdminView # Importa AdminView para poder manipular su instancia
 
 logger = logging.getLogger(__name__) # Obtiene una instancia del logger para este módulo
@@ -14,13 +15,14 @@ class MainView(ft.View):
     Vista principal de la aplicación de la pizzería.
     Contiene la barra de navegación lateral, la barra superior y el contenido dinámico.
     """
-    def __init__(self, page: ft.Page, administrador_service: AdministradorService, admin_view_instance: AdminView): # Recibe el servicio y la instancia de AdminView
+    def __init__(self, page: ft.Page, administrador_service: AdministradorService, admin_view_instance: AdminView, pizzeria_info_service: PizzeriaInfoService): # Recibe el nuevo servicio
         super().__init__()
         self.page = page
         self.route = "/" # Ruta por defecto para esta vista
 
-        # Instancia del servicio de administrador
+        # Instancia de los servicios
         self.administrador_service = administrador_service
+        self.pizzeria_info_service = pizzeria_info_service # Asigna el nuevo servicio
         # Instancia de AdminView para poder manipular su estado
         self.admin_view_instance = admin_view_instance
 
@@ -120,11 +122,6 @@ class MainView(ft.View):
                     label="Pedidos",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.icons.PEOPLE_OUTLINED,
-                    selected_icon=ft.icons.PEOPLE,
-                    label="Clientes",
-                ),
-                ft.NavigationRailDestination(
                     icon=ft.icons.ADMIN_PANEL_SETTINGS_OUTLINED,
                     selected_icon=ft.icons.ADMIN_PANEL_SETTINGS,
                     label="Administrador",
@@ -148,21 +145,52 @@ class MainView(ft.View):
         if selected_index == 0:
             self._load_home_section()
         elif selected_index == 1:
-            show_snackbar(self.page, "Sección de Menú - ¡Implementar!")
             self._load_menu_section() # Puedes definir esta función
         elif selected_index == 2:
-            show_snackbar(self.page, "Sección de Pedidos - ¡Implementar!")
             self._load_orders_section() # Puedes definir esta función
-        elif selected_index == 3:
-            show_snackbar(self.page, "Sección de Clientes - ¡Implementar!")
-            self._load_customers_section() # Puedes definir esta función
-        elif selected_index == 4:
+        elif selected_index == 3: # Índice para administrador
             self._load_admin_section()
         self.page.update()
 
     def _load_home_section(self):
         """Carga la sección de inicio."""
         self.main_content_area.controls.clear()
+
+        pizzeria_info = self.pizzeria_info_service.get_pizzeria_info()
+        
+        # Contenido dinámico basado en la información de la pizzería
+        pizzeria_details = []
+        if pizzeria_info:
+            pizzeria_details.extend([
+                ft.Text(f"Nombre: {pizzeria_info.nombre_pizzeria}", size=16, color=self.text_color),
+                ft.Text(f"Dirección: {pizzeria_info.direccion}", size=16, color=self.text_color),
+                ft.Text(f"Teléfono: {pizzeria_info.telefono}", size=16, color=self.text_color),
+            ])
+            if pizzeria_info.email_contacto:
+                pizzeria_details.append(ft.Text(f"Email: {pizzeria_info.email_contacto}", size=16, color=self.text_color))
+            if pizzeria_info.horario_atencion:
+                pizzeria_details.append(ft.Text(f"Horario: {pizzeria_info.horario_atencion}", size=16, color=self.text_color))
+            if pizzeria_info.red_social_facebook or pizzeria_info.red_social_instagram:
+                social_links = []
+                if pizzeria_info.red_social_facebook:
+                    social_links.append(ft.IconButton(
+                        icon=ft.icons.FACEBOOK,
+                        url=pizzeria_info.red_social_facebook,
+                        tooltip="Facebook",
+                        icon_color=ft.colors.BLUE_600
+                    ))
+                if pizzeria_info.red_social_instagram:
+                    social_links.append(ft.IconButton(
+                        icon=ft.icons.CAMERA_ALT_ROUNDED,
+                        url=pizzeria_info.red_social_instagram,
+                        tooltip="Instagram",
+                        icon_color=ft.colors.PINK_400
+                    ))
+                pizzeria_details.append(ft.Row(social_links, alignment=ft.MainAxisAlignment.CENTER))
+        else:
+            pizzeria_details.append(ft.Text("Información de la pizzería no disponible. Por favor, configúrala en el panel de administración.", size=16, color=ft.colors.RED_400))
+
+
         self.main_content_area.controls.append(
             CustomCard(
                 title="🍕 ¡Bienvenido a la Pizzería Acme! 🍕",
@@ -172,8 +200,9 @@ class MainView(ft.View):
                     [
                         ft.Text("Explora nuestro delicioso menú o gestiona tu pedido.", size=16, color=self.text_color),
                         ft.Text("¡Tu destino favorito para las mejores pizzas!", size=16, color=self.text_color),
-                        # Modificación aquí: Pasamos directamente el índice 1
-                        ft.ElevatedButton("Ver Menú", on_click=lambda e: self._on_navigation_rail_change(1)),
+                        ft.Divider(color=ft.colors.BLUE_GREY_700),
+                        ft.Text("Nuestra Pizzería:", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        *pizzeria_details, # Desempaqueta la lista de detalles de la pizzería aquí
                         ft.Divider(color=ft.colors.BLUE_GREY_700),
                         ft.Text("Oferta del Día:", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
                         ft.Text("¡Pizza Grande de Pepperoni con un 20% de descuento!", size=16, color=ft.colors.RED_500),
@@ -183,7 +212,9 @@ class MainView(ft.View):
                             height=200,
                             fit=ft.ImageFit.COVER,
                             border_radius=ft.border_radius.all(10)
-                        )
+                        ),
+                        # Botón para ver el menú
+                        ft.ElevatedButton("Ver Menú", on_click=lambda e: self._on_navigation_rail_change(1)),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER
                 )
@@ -243,34 +274,6 @@ class MainView(ft.View):
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=15),
                 width=600
-            )
-        )
-        self.main_content_area.update()
-
-    def _load_customers_section(self):
-        """Carga la sección de clientes."""
-        self.main_content_area.controls.clear()
-        self.main_content_area.controls.append(
-            CustomCard(
-                title="👥 Gestión de Clientes (Simulado) 👥",
-                title_color=self.text_color,
-                bgcolor=self.card_bg_color,
-                content=ft.Column([
-                    ft.Text("Aquí se mostraría la información de tus clientes.", size=16, color=self.text_color),
-                    ft.Text("Esta sección aún no está conectada a la base de datos de clientes.", size=14, color=ft.colors.WHITE54),
-                    create_data_table(
-                        ["ID", "Nombre", "Email", "Teléfono"],
-                        [
-                            ["1", "Ana García", "ana@example.com", "555-1234"],
-                            ["2", "Luis Martínez", "luis@example.com", "555-5678"],
-                        ],
-                        heading_row_bgcolor=ft.colors.BLUE_GREY_700,
-                        data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
-                        border_color=ft.colors.BLUE_GREY_700,
-                        text_color=self.text_color
-                    ),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
-                width=800
             )
         )
         self.main_content_area.update()

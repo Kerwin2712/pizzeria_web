@@ -18,7 +18,7 @@ class ClienteService(BaseService):
 
         Args:
             cliente_data (dict): Diccionario con los datos del cliente.
-                                 Ej: {'nombre': 'Juan Perez', 'email': 'juan@example.com', 'direccion': 'Calle Falsa 123'}
+            Ej: {'nombre': 'Juan Perez', 'email': 'juan@example.com', 'direccion': 'Calle Falsa 123'}
 
         Returns:
             Cliente: La instancia del cliente añadida.

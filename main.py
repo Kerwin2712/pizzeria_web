@@ -90,10 +90,12 @@ def main(page: ft.Page):
         administrador_service
     )
     
-    # Luego instanciamos MainView, pasándole solo los argumentos que su constructor espera.
-    # Se eliminó 'admin_view_instance' de aquí.
-    # Se añade una referencia a admin_view_instance para que MainView pueda establecer su estado de login.
-    main_view_instance = MainView(page, administrador_service, admin_view_instance) 
+    # Obtener el nombre de la pizzería para pasarlo a MainView
+    pizzeria_info = pizzeria_info_service.get_pizzeria_info()
+    pizzeria_name = pizzeria_info.nombre_pizzeria if pizzeria_info else "Pizzería Acme"
+
+    # Luego instanciamos MainView, pasándole ahora el pizzeria_info_service y el nombre de la pizzería
+    main_view_instance = MainView(page, administrador_service, admin_view_instance, pizzeria_info_service) 
     
     logger.info("Vistas creadas correctamente.")
 
