@@ -95,7 +95,8 @@ def main(page: ft.Page):
     pizzeria_name = pizzeria_info.nombre_pizzeria if pizzeria_info else "Pizzería Acme"
 
     # Luego instanciamos MainView, pasándole ahora el pizzeria_info_service, el nombre de la pizzería y menu_service
-    main_view_instance = MainView(page, administrador_service, admin_view_instance, pizzeria_info_service, menu_service) # Pasa menu_service
+    # CORRECCIÓN AQUÍ: Pasar cliente_service, pedido_service y financiero_service
+    main_view_instance = MainView(page, administrador_service, admin_view_instance, pizzeria_info_service, menu_service, cliente_service, pedido_service, financiero_service)
     
     logger.info("Vistas creadas correctamente.")
 

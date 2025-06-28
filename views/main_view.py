@@ -7,6 +7,9 @@ import logging # Importa el módulo logging
 from services.administrador_service import AdministradorService
 from services.pizzeria_info_service import PizzeriaInfoService # Importa el nuevo servicio
 from services.menu_service import MenuService # Importa MenuService para obtener el menú
+from services.cliente_service import ClienteService # Importar ClienteService
+from services.pedido_service import PedidoService # Importar PedidoService
+from services.financiero_service import FinancieroService # Importar FinancieroService
 from views.admin_view import AdminView # Importa AdminView para poder manipular su instancia
 
 logger = logging.getLogger(__name__) # Obtiene una instancia del logger para este módulo
@@ -16,7 +19,7 @@ class MainView(ft.View):
     Vista principal de la aplicación de la pizzería.
     Contiene la barra de navegación lateral, la barra superior y el contenido dinámico.
     """
-    def __init__(self, page: ft.Page, administrador_service: AdministradorService, admin_view_instance: AdminView, pizzeria_info_service: PizzeriaInfoService, menu_service: MenuService): # Recibe el nuevo servicio
+    def __init__(self, page: ft.Page, administrador_service: AdministradorService, admin_view_instance: AdminView, pizzeria_info_service: PizzeriaInfoService, menu_service: MenuService, cliente_service: ClienteService, pedido_service: PedidoService, financiero_service: FinancieroService): # Recibe los nuevos servicios
         super().__init__()
         self.page = page
         self.route = "/" # Ruta por defecto para esta vista
@@ -25,6 +28,9 @@ class MainView(ft.View):
         self.administrador_service = administrador_service
         self.pizzeria_info_service = pizzeria_info_service # Asigna el nuevo servicio
         self.menu_service = menu_service # Asigna el MenuService
+        self.cliente_service = cliente_service # Asigna ClienteService
+        self.pedido_service = pedido_service # Asigna PedidoService
+        self.financiero_service = financiero_service # Asigna FinancieroService
         # Instancia de AdminView para poder manipular su estado
         self.admin_view_instance = admin_view_instance
 
@@ -214,7 +220,6 @@ class MainView(ft.View):
                         *pizzeria_details, # Desempaqueta la lista de detalles de la pizzería aquí
                         ft.Divider(color=ft.colors.BLUE_GREY_700),
                         ft.Text("Oferta del Día:", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
-                        ft.Text("¡Pizza Grande de Pepperoni con un 20% de descuento!", size=16, color=ft.colors.RED_500),
                         ft.Image(
                             src="https://placehold.co/400x200/FF5733/FFFFFF?text=Pizza+Oferta",
                             width=400,
@@ -453,6 +458,7 @@ class MainView(ft.View):
         self.customer_name_field = ft.TextField(label="Nombre Completo", hint_text="Juan Pérez", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
         self.delivery_address_field = ft.TextField(label="Dirección de Envío", hint_text="Calle Falsa 123, Springfield", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
         self.customer_phone_field = ft.TextField(label="Teléfono", hint_text="04XX-XXXXXXX", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.customer_email_field = ft.TextField(label="Email (opcional)", hint_text="tu@ejemplo.com", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)) # Nuevo campo para email
 
 
         self.main_content_area.controls.append(
@@ -465,8 +471,9 @@ class MainView(ft.View):
                     *order_items_display, # Muestra los ítems del carrito
                     ft.Divider(color=ft.colors.BLUE_GREY_700),
                     self.customer_name_field,
+                    self.customer_phone_field, # Mover teléfono antes del email
+                    self.customer_email_field, # Añadir campo de email
                     self.delivery_address_field,
-                    self.customer_phone_field,
                     ft.ElevatedButton(
                         "Confirmar Pedido",
                         icon=ft.icons.CHECK_CIRCLE,
@@ -488,35 +495,98 @@ class MainView(ft.View):
         self._load_orders_section() # Recargar la sección de pedidos para actualizar la vista
 
     def _confirm_order(self, e):
-        """Maneja la confirmación de un pedido por parte del cliente."""
-        logger.info("Intentando confirmar pedido.")
+        """Maneja la confirmación de un pedido por parte del cliente, guardando en la DB."""
+        logger.info("Intentando confirmar pedido y guardar en la base de datos.")
         if not self.selected_items:
             show_snackbar(self.page, "Tu carrito está vacío. Añade ítems al menú antes de confirmar.", ft.colors.RED_500)
             return
 
         customer_name = self.customer_name_field.value
-        delivery_address = self.delivery_address_field.value
         customer_phone = self.customer_phone_field.value
+        customer_email = self.customer_email_field.value # Nuevo
+        delivery_address = self.delivery_address_field.value
 
         if not customer_name or not delivery_address or not customer_phone:
-            show_snackbar(self.page, "Por favor, completa todos los campos de contacto y dirección.", ft.colors.RED_500)
+            show_snackbar(self.page, "Por favor, completa los campos obligatorios: Nombre, Teléfono y Dirección.", ft.colors.RED_500)
             return
         
-        # Calcular el total del pedido
-        total_order_price = 0.0
-        for item_id, quantity in self.selected_items.items():
-            item = self.menu_service.get_item_menu_by_id(item_id)
-            if item:
-                total_order_price += item.precio * quantity
+        try:
+            # 1. Gestionar el cliente: buscar existente o crear nuevo
+            cliente = None
+            if customer_email:
+                cliente = self.cliente_service.get_cliente_by_email(customer_email)
+            
+            # Si no se encontró por email o no se proporcionó email, buscar por teléfono
+            # Nota: get_cliente_by_telefono no existe, usar search_clientes y filtrar
+            # O crear un nuevo cliente si no se encuentra un match exacto por teléfono/nombre
+            if not cliente:
+                # Intentar buscar por nombre y teléfono si no hay email o no se encontró por email
+                clientes_por_telefono = self.cliente_service.search_clientes(query=customer_phone)
+                if clientes_por_telefono:
+                    # Filtrar por nombre exacto si hay múltiples resultados por teléfono
+                    cliente_match = next((c for c in clientes_por_telefono if c.nombre.lower() == customer_name.lower()), None)
+                    if cliente_match:
+                        cliente = cliente_match
+                        logger.info(f"Cliente existente encontrado por nombre y teléfono con ID: {cliente.id}")
+                
+                if not cliente: # Si aún no se encontró, crear un nuevo cliente
+                    logger.info(f"Cliente no encontrado. Creando nuevo cliente: {customer_name}")
+                    cliente_data = {
+                        'nombre': customer_name,
+                        'telefono': customer_phone,
+                        'direccion': delivery_address # La dirección se asocia al cliente en su primera aparición
+                    }
+                    if customer_email:
+                        cliente_data['email'] = customer_email
+                    
+                    cliente = self.cliente_service.add_cliente(cliente_data)
+                    if not cliente:
+                        show_snackbar(self.page, "Error al registrar un nuevo cliente.", ft.colors.RED_500)
+                        logger.error("Fallo al añadir nuevo cliente.")
+                        return
 
-        # Aquí integrarías la lógica real para guardar el pedido en la base de datos.
-        # Por ahora, es un mensaje simulado.
-        show_snackbar(self.page, f"¡Pedido de ${total_order_price:,.2f} realizado con éxito a {delivery_address} para {customer_name}!", ft.colors.GREEN_700)
-        logger.info(f"Pedido simulado realizado. Cliente: {customer_name}, Total: {total_order_price}")
+            logger.info(f"Cliente final para el pedido con ID: {cliente.id}")
 
-        # Limpiar el carrito después del pedido
-        self.selected_items.clear()
-        self._load_home_section() # Redirigir al inicio o a una página de confirmación
+            # 2. Preparar ítems para el pedido
+            items_para_pedido = []
+            for item_id, quantity in self.selected_items.items():
+                items_para_pedido.append({'item_id': item_id, 'cantidad': quantity})
+
+            # 3. Añadir el pedido a la base de datos
+            nuevo_pedido = self.pedido_service.add_pedido(
+                cliente_id=cliente.id,
+                direccion_delivery=delivery_address,
+                items_con_cantidad=items_para_pedido
+            )
+
+            if nuevo_pedido:
+                # 4. Registrar la transacción financiera (ingreso)
+                # CORRECCIÓN AQUÍ: Cambiado add_registro_financiero a add_registro
+                self.financiero_service.add_registro(
+                    tipo='Ingreso', # Asegúrate que el tipo coincida con el esperado por tu modelo (ej. 'Ingreso' en mayúscula)
+                    monto=nuevo_pedido.total,
+                    descripcion=f"Venta de pedido #{nuevo_pedido.id} a {cliente.nombre}",
+                    pedido_id=nuevo_pedido.id
+                )
+                show_snackbar(self.page, f"¡Pedido #{nuevo_pedido.id} realizado con éxito para {cliente.nombre}! Total: ${nuevo_pedido.total:,.2f}", ft.colors.GREEN_700)
+                logger.info(f"Pedido #{nuevo_pedido.id} completado y registrado. Cliente: {cliente.nombre}, Total: {nuevo_pedido.total}")
+
+                # Limpiar el carrito y campos de formulario después del pedido exitoso
+                self.selected_items.clear()
+                self.customer_name_field.value = ""
+                self.customer_phone_field.value = ""
+                self.customer_email_field.value = ""
+                self.delivery_address_field.value = ""
+
+                self._load_home_section() # Redirigir al inicio
+            else:
+                show_snackbar(self.page, "Error al crear el pedido. Por favor, inténtalo de nuevo.", ft.colors.RED_500)
+                logger.error("Fallo al añadir el pedido a la base de datos.")
+
+        except Exception as ex:
+            show_snackbar(self.page, f"Ocurrió un error inesperado al procesar el pedido: {ex}", ft.colors.RED_700)
+            logger.exception("Error inesperado en _confirm_order:")
+        
         self.page.update()
 
 
