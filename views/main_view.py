@@ -98,6 +98,11 @@ class MainView(ft.View):
                 expand=True,
             )
         ]
+        
+        # Atributos para la sección de menú que necesitan ser accesibles globalmente en la clase
+        self.menu_tabs = None
+        self.menu_tab_content_area = None
+        self.tab_views_content_list = [] # Lista para almacenar los ft.Column de cada pestaña
 
     def _create_navigation_rail(self):
         """Crea la barra de navegación lateral."""
@@ -121,12 +126,12 @@ class MainView(ft.View):
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.SHOPPING_CART_OUTLINED,
-                    selected_icon=ft.icons.SHOPPING_CART,
+                    selected_icon_content=ft.Icon(ft.icons.SHOPPING_CART),
                     label="Pedidos",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.icons.ADMIN_PANEL_SETTINGS_OUTLINED,
-                    selected_icon=ft.icons.ADMIN_PANEL_SETTINGS,
+                    selected_icon_content=ft.Icon(ft.icons.ADMIN_PANEL_SETTINGS),
                     label="Administrador",
                 ),
             ],
@@ -227,85 +232,77 @@ class MainView(ft.View):
         self.main_content_area.update() # Asegura que la UI se actualice
 
     def _load_menu_section(self):
-        """Carga la sección del menú."""
-        logger.info("Cargando sección de menú para el cliente.")
+        """Carga la sección del menú con pestañas por categoría."""
+        logger.info("Cargando sección de menú para el cliente con pestañas.")
         self.main_content_area.controls.clear()
 
         all_items = self.menu_service.get_all_items_menu()
-        
+        all_categories = self.menu_service.get_all_categorias()
+
         # Agrupar ítems por categoría
         menu_by_category = {}
+        # Inicializar menu_by_category con todas las categorías existentes
+        for category in all_categories:
+            menu_by_category[category.nombre] = []
+
         if all_items:
             for item in all_items:
                 if item.disponible: # Solo mostrar ítems disponibles
                     category_name = item.categoria.nombre if item.categoria else "Sin Categoría"
-                    if category_name not in menu_by_category:
-                        menu_by_category[category_name] = []
-                    menu_by_category[category_name].append(item)
+                    if category_name in menu_by_category:
+                        menu_by_category[category_name].append(item)
+                    else: # En caso de que un ítem tenga una categoría no registrada previamente
+                        menu_by_category[category_name] = [item]
         
-        menu_content = []
-        menu_content.append(ft.Text("Explora nuestro delicioso menú. ¡Haz clic para añadir a tu pedido!", size=16, color=self.text_color))
-
-        # Iterar sobre categorías y sus ítems
-        for category, items in menu_by_category.items():
-            menu_content.append(ft.Divider(color=ft.colors.BLUE_GREY_700))
-            menu_content.append(ft.Text(category, size=24, weight=ft.FontWeight.BOLD, color=self.text_color))
-            menu_content.append(ft.Divider(color=ft.colors.BLUE_GREY_700))
-
-            for item in items:
-                # Usar un Card para cada ítem del menú
-                menu_content.append(
-                    ft.Card(
-                        elevation=3,
-                        content=ft.Container(
-                            padding=15,
-                            content=ft.Row([
-                                ft.Image(
-                                    src=item.imagen_url if item.imagen_url else "https://placehold.co/100x100/343a40/FFFFFF?text=No+Img",
-                                    width=100,
-                                    height=100,
-                                    fit=ft.ImageFit.COVER,
-                                    border_radius=ft.border_radius.all(10),
-                                    error_content=ft.Icon(ft.icons.BROKEN_IMAGE, color=ft.colors.RED_400, size=50) # Icono si la imagen no carga
-                                ),
-                                ft.Column([
-                                    ft.Text(item.nombre, size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
-                                    ft.Text(item.descripcion if item.descripcion else "Sin descripción.", size=14, color=ft.colors.WHITE70),
-                                    ft.Text(f"${item.precio:,.2f}", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
-                                ],
-                                expand=True,
-                                spacing=5),
-                                ft.Column([
-                                    ft.IconButton(
-                                        icon=ft.icons.ADD_SHOPPING_CART,
-                                        tooltip="Añadir al Pedido",
-                                        icon_color=ft.colors.BLUE_400,
-                                        on_click=lambda e, item_id=item.id, item_name=item.nombre, item_price=item.precio: self._add_to_order(item_id, item_name, item_price)
-                                    ),
-                                    ft.Text(str(self.selected_items.get(item.id, 0)), size=16, color=self.text_color, text_align=ft.TextAlign.CENTER),
-                                    ft.IconButton(
-                                        icon=ft.icons.REMOVE_SHOPPING_CART,
-                                        tooltip="Quitar del Pedido",
-                                        icon_color=ft.colors.RED_400,
-                                        on_click=lambda e, item_id=item.id: self._remove_from_order(item_id)
-                                    ),
-                                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-                            ],
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER)
-                        ),
-                        color=self.card_bg_color # Color de fondo de la tarjeta
-                    )
-                )
+        # Crear la lista de pestañas (Tabs) y el contenido de las vistas
+        tabs = []
+        self.tab_views_content_list = [] # Reiniciar la lista de contenidos de las pestañas
         
-        if not menu_by_category:
-            menu_content.append(ft.Text("¡No hay ítems disponibles en el menú por ahora!", size=16, color=ft.colors.WHITE54))
+        # Pestaña "Todos"
+        all_items_content = []
+        if all_items:
+            for item in all_items:
+                if item.disponible:
+                    all_items_content.append(self._create_menu_item_card(item))
+        else:
+            all_items_content.append(ft.Text("¡No hay ítems disponibles en el menú por ahora!", size=16, color=ft.colors.WHITE54))
 
-        menu_content.append(ft.Divider(color=ft.colors.BLUE_GREY_700))
-        menu_content.append(ft.ElevatedButton(
-            "Ver Pedido / Checkout",
-            icon=ft.icons.SHOPPING_CART_CHECKOUT,
-            on_click=lambda e: self._on_navigation_rail_change(2) # Ir a la sección de pedidos
-        ))
+        tabs.append(ft.Tab(text="Todos"))
+        # El scroll se aplica al Column, no al Container que lo envuelve
+        self.tab_views_content_list.append(ft.Column(all_items_content, spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO, expand=True))
+
+        # Pestañas por categoría
+        for category_name, items in menu_by_category.items():
+            tabs.append(ft.Tab(text=category_name))
+            category_items_content = []
+            if items:
+                for item in items:
+                    category_items_content.append(self._create_menu_item_card(item))
+            else:
+                category_items_content.append(ft.Text(f"No hay ítems en la categoría '{category_name}'.", size=14, color=ft.colors.WHITE54))
+            
+            # El scroll se aplica al Column, no al Container que lo envuelve
+            self.tab_views_content_list.append(ft.Column(category_items_content, spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO, expand=True))
+
+        # El componente Tabs
+        self.menu_tabs = ft.Tabs(
+            selected_index=0,
+            animation_duration=300,
+            tabs=tabs,
+            expand=1,
+            on_change=self._on_tab_change,
+            indicator_color=ft.colors.AMBER_400,
+            label_color=ft.colors.WHITE,
+            unselected_label_color=ft.colors.WHITE54,
+        )
+
+        # El contenedor que mostrará el contenido de la pestaña seleccionada
+        # Inicialmente muestra el contenido de la primera pestaña (Todos)
+        self.menu_tab_content_area = ft.Container(
+            content=self.tab_views_content_list[self.menu_tabs.selected_index],
+            expand=True, # Permite que ocupe el espacio disponible
+            # Eliminado: scroll=ft.ScrollMode.AUTO de aquí
+        )
 
         self.main_content_area.controls.append(
             CustomCard(
@@ -313,14 +310,80 @@ class MainView(ft.View):
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column(
-                    menu_content,
+                    [
+                        ft.Text("Explora nuestro delicioso menú por categoría. ¡Haz clic para añadir a tu pedido!", size=16, color=self.text_color),
+                        self.menu_tabs, # Añadir el componente Tabs
+                        self.menu_tab_content_area, # Añadir el área de contenido dinámico
+                        ft.Divider(color=ft.colors.BLUE_GREY_700),
+                        ft.ElevatedButton(
+                            "Ver Pedido / Checkout",
+                            icon=ft.icons.SHOPPING_CART_CHECKOUT,
+                            on_click=lambda e: self._on_navigation_rail_change(2) # Ir a la sección de pedidos
+                        )
+                    ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=15
+                    spacing=15,
+                    expand=True # Este expand es para el Column dentro de CustomCard
                 ),
                 width=800
             )
         )
         self.main_content_area.update()
+
+    def _on_tab_change(self, e):
+        """Maneja el cambio de pestaña en la sección del menú."""
+        selected_index = e.control.selected_index
+        logger.info(f"Pestaña del menú cambiada a índice: {selected_index}")
+        # Actualizar el contenido del contenedor principal del menú
+        if self.menu_tab_content_area and selected_index < len(self.tab_views_content_list):
+            self.menu_tab_content_area.content = self.tab_views_content_list[selected_index]
+            self.menu_tab_content_area.update() # Forzar la actualización del contenedor de contenido
+        self.page.update() # Forzar la actualización de la página
+
+
+    def _create_menu_item_card(self, item):
+        """Crea una tarjeta (Card) para un ítem del menú."""
+        return ft.Card(
+            elevation=3,
+            content=ft.Container(
+                padding=15,
+                content=ft.Row([
+                    ft.Image(
+                        src=item.imagen_url if item.imagen_url else "https://placehold.co/100x100/343a40/FFFFFF?text=No+Img",
+                        width=100,
+                        height=100,
+                        fit=ft.ImageFit.COVER,
+                        border_radius=ft.border_radius.all(10),
+                        error_content=ft.Icon(ft.icons.BROKEN_IMAGE, color=ft.colors.RED_400, size=50) # Icono si la imagen no carga
+                    ),
+                    ft.Column([
+                        ft.Text(item.nombre, size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
+                        ft.Text(item.descripcion if item.descripcion else "Sin descripción.", size=14, color=ft.colors.WHITE70),
+                        ft.Text(f"${item.precio:,.2f}", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
+                    ],
+                    expand=True,
+                    spacing=5),
+                    ft.Column([
+                        ft.IconButton(
+                            icon=ft.icons.ADD_SHOPPING_CART,
+                            tooltip="Añadir al Pedido",
+                            icon_color=ft.colors.BLUE_400,
+                            on_click=lambda e, item_id=item.id, item_name=item.nombre, item_price=item.precio: self._add_to_order(item_id, item_name, item_price)
+                        ),
+                        ft.Text(str(self.selected_items.get(item.id, 0)), size=16, color=self.text_color, text_align=ft.TextAlign.CENTER),
+                        ft.IconButton(
+                            icon=ft.icons.REMOVE_SHOPPING_CART,
+                            tooltip="Quitar del Pedido",
+                            icon_color=ft.colors.RED_400,
+                            on_click=lambda e, item_id=item.id: self._remove_from_order(item_id)
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER)
+            ),
+            color=self.card_bg_color # Color de fondo de la tarjeta
+        )
+
 
     def _add_to_order(self, item_id: int, item_name: str, item_price: float):
         """Añade un ítem al pedido del cliente."""
@@ -511,4 +574,3 @@ class MainView(ft.View):
             logger.warning(f"Login fallido para el usuario: {username}. Credenciales incorrectas.")
             show_snackbar(self.page, "Usuario o contraseña incorrectos.", ft.colors.RED_500)
         self.page.update()
-
