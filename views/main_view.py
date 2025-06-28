@@ -6,6 +6,7 @@ import logging # Importa el módulo logging
 # Importamos los servicios necesarios
 from services.administrador_service import AdministradorService
 from services.pizzeria_info_service import PizzeriaInfoService # Importa el nuevo servicio
+from services.menu_service import MenuService # Importa MenuService para obtener el menú
 from views.admin_view import AdminView # Importa AdminView para poder manipular su instancia
 
 logger = logging.getLogger(__name__) # Obtiene una instancia del logger para este módulo
@@ -15,7 +16,7 @@ class MainView(ft.View):
     Vista principal de la aplicación de la pizzería.
     Contiene la barra de navegación lateral, la barra superior y el contenido dinámico.
     """
-    def __init__(self, page: ft.Page, administrador_service: AdministradorService, admin_view_instance: AdminView, pizzeria_info_service: PizzeriaInfoService): # Recibe el nuevo servicio
+    def __init__(self, page: ft.Page, administrador_service: AdministradorService, admin_view_instance: AdminView, pizzeria_info_service: PizzeriaInfoService, menu_service: MenuService): # Recibe el nuevo servicio
         super().__init__()
         self.page = page
         self.route = "/" # Ruta por defecto para esta vista
@@ -23,6 +24,7 @@ class MainView(ft.View):
         # Instancia de los servicios
         self.administrador_service = administrador_service
         self.pizzeria_info_service = pizzeria_info_service # Asigna el nuevo servicio
+        self.menu_service = menu_service # Asigna el MenuService
         # Instancia de AdminView para poder manipular su estado
         self.admin_view_instance = admin_view_instance
 
@@ -53,6 +55,7 @@ class MainView(ft.View):
         self.textfield_fill_color = ft.colors.BLUE_GREY_800 # Color de fondo para los TextField
 
         self.drawer_open = False # Estado del drawer (panel lateral)
+        self.selected_items = {} # Diccionario para almacenar ítems seleccionados para el pedido: {item_id: cantidad}
 
         # Define el NavRail y su contenido
         self.navigation_rail = self._create_navigation_rail()
@@ -142,6 +145,7 @@ class MainView(ft.View):
             selected_index = e.control.selected_index
         
         logger.info(f"Navegación seleccionada: {selected_index}")
+        self.navigation_rail.selected_index = selected_index # Actualiza el índice seleccionado
         if selected_index == 0:
             self._load_home_section()
         elif selected_index == 1:
@@ -224,39 +228,170 @@ class MainView(ft.View):
 
     def _load_menu_section(self):
         """Carga la sección del menú."""
+        logger.info("Cargando sección de menú para el cliente.")
         self.main_content_area.controls.clear()
+
+        all_items = self.menu_service.get_all_items_menu()
+        
+        # Agrupar ítems por categoría
+        menu_by_category = {}
+        if all_items:
+            for item in all_items:
+                if item.disponible: # Solo mostrar ítems disponibles
+                    category_name = item.categoria.nombre if item.categoria else "Sin Categoría"
+                    if category_name not in menu_by_category:
+                        menu_by_category[category_name] = []
+                    menu_by_category[category_name].append(item)
+        
+        menu_content = []
+        menu_content.append(ft.Text("Explora nuestro delicioso menú. ¡Haz clic para añadir a tu pedido!", size=16, color=self.text_color))
+
+        # Iterar sobre categorías y sus ítems
+        for category, items in menu_by_category.items():
+            menu_content.append(ft.Divider(color=ft.colors.BLUE_GREY_700))
+            menu_content.append(ft.Text(category, size=24, weight=ft.FontWeight.BOLD, color=self.text_color))
+            menu_content.append(ft.Divider(color=ft.colors.BLUE_GREY_700))
+
+            for item in items:
+                # Usar un Card para cada ítem del menú
+                menu_content.append(
+                    ft.Card(
+                        elevation=3,
+                        content=ft.Container(
+                            padding=15,
+                            content=ft.Row([
+                                ft.Image(
+                                    src=item.imagen_url if item.imagen_url else "https://placehold.co/100x100/343a40/FFFFFF?text=No+Img",
+                                    width=100,
+                                    height=100,
+                                    fit=ft.ImageFit.COVER,
+                                    border_radius=ft.border_radius.all(10),
+                                    error_content=ft.Icon(ft.icons.BROKEN_IMAGE, color=ft.colors.RED_400, size=50) # Icono si la imagen no carga
+                                ),
+                                ft.Column([
+                                    ft.Text(item.nombre, size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
+                                    ft.Text(item.descripcion if item.descripcion else "Sin descripción.", size=14, color=ft.colors.WHITE70),
+                                    ft.Text(f"${item.precio:,.2f}", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
+                                ],
+                                expand=True,
+                                spacing=5),
+                                ft.Column([
+                                    ft.IconButton(
+                                        icon=ft.icons.ADD_SHOPPING_CART,
+                                        tooltip="Añadir al Pedido",
+                                        icon_color=ft.colors.BLUE_400,
+                                        on_click=lambda e, item_id=item.id, item_name=item.nombre, item_price=item.precio: self._add_to_order(item_id, item_name, item_price)
+                                    ),
+                                    ft.Text(str(self.selected_items.get(item.id, 0)), size=16, color=self.text_color, text_align=ft.TextAlign.CENTER),
+                                    ft.IconButton(
+                                        icon=ft.icons.REMOVE_SHOPPING_CART,
+                                        tooltip="Quitar del Pedido",
+                                        icon_color=ft.colors.RED_400,
+                                        on_click=lambda e, item_id=item.id: self._remove_from_order(item_id)
+                                    ),
+                                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+                            ],
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                        ),
+                        color=self.card_bg_color # Color de fondo de la tarjeta
+                    )
+                )
+        
+        if not menu_by_category:
+            menu_content.append(ft.Text("¡No hay ítems disponibles en el menú por ahora!", size=16, color=ft.colors.WHITE54))
+
+        menu_content.append(ft.Divider(color=ft.colors.BLUE_GREY_700))
+        menu_content.append(ft.ElevatedButton(
+            "Ver Pedido / Checkout",
+            icon=ft.icons.SHOPPING_CART_CHECKOUT,
+            on_click=lambda e: self._on_navigation_rail_change(2) # Ir a la sección de pedidos
+        ))
+
         self.main_content_area.controls.append(
             CustomCard(
                 title="📜 Nuestro Delicioso Menú 📜",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
-                content=ft.Column([
-                    ft.Text("Aquí puedes encontrar todas nuestras opciones de pizzas, bebidas y postres.", size=16, color=self.text_color),
-                    ft.Text("¡Pronto podrás ver los ítems de tu base de datos aquí!", size=14, color=ft.colors.WHITE54),
-                    # Tabla de datos simulada o con datos reales si se integra el servicio
-                    create_data_table(
-                        ["Ítem", "Descripción", "Precio"],
-                        [
-                            ["Pizza Margherita", "Tomate, mozzarella, albahaca fresca", "$10.00"],
-                            ["Pizza Pepperoni", "Pepperoni, mozzarella, salsa de tomate", "$12.00"],
-                            ["Refresco Grande", "Varios sabores", "$3.50"],
-                        ],
-                        heading_row_bgcolor=ft.colors.BLUE_GREY_700,
-                        data_row_bgcolor_hover=ft.colors.BLUE_GREY_800,
-                        border_color=ft.colors.BLUE_GREY_700,
-                        text_color=self.text_color
-                    ),
-                    # Modificación aquí: Pasamos directamente el índice 2
-                    ft.ElevatedButton("Hacer Pedido", on_click=lambda e: self._on_navigation_rail_change(2)),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
+                content=ft.Column(
+                    menu_content,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=15
+                ),
                 width=800
             )
         )
         self.main_content_area.update()
 
+    def _add_to_order(self, item_id: int, item_name: str, item_price: float):
+        """Añade un ítem al pedido del cliente."""
+        self.selected_items[item_id] = self.selected_items.get(item_id, 0) + 1
+        show_snackbar(self.page, f"'{item_name}' añadido al pedido. Cantidad: {self.selected_items[item_id]}", ft.colors.BLUE_GREY_600)
+        logger.info(f"Añadido item {item_name} (ID: {item_id}). Cantidad: {self.selected_items[item_id]}")
+        self._load_menu_section() # Recargar la sección del menú para actualizar las cantidades
+        # No llamar a page.update() aquí, lo hará _load_menu_section()
+
+    def _remove_from_order(self, item_id: int):
+        """Remueve un ítem del pedido del cliente."""
+        if item_id in self.selected_items:
+            self.selected_items[item_id] -= 1
+            if self.selected_items[item_id] <= 0:
+                del self.selected_items[item_id]
+                show_snackbar(self.page, "Ítem removido del pedido.", ft.colors.AMBER_600)
+                logger.info(f"Removido item ID: {item_id}. Cantidad: 0.")
+            else:
+                item_name = self.menu_service.get_item_menu_by_id(item_id).nombre # Obtener nombre para snackbar
+                show_snackbar(self.page, f"Cantidad de '{item_name}' reducida. Cantidad: {self.selected_items[item_id]}", ft.colors.AMBER_600)
+                logger.info(f"Cantidad de item ID: {item_id} reducida. Cantidad: {self.selected_items[item_id]}.")
+        else:
+            show_snackbar(self.page, "El ítem no está en tu pedido.", ft.colors.RED_500)
+            logger.warning(f"Intento de remover ítem ID: {item_id} que no está en el pedido.")
+        self._load_menu_section() # Recargar la sección del menú para actualizar las cantidades
+
     def _load_orders_section(self):
         """Carga la sección de pedidos."""
+        logger.info("Cargando sección de pedidos para el cliente.")
         self.main_content_area.controls.clear()
+
+        # Mostrar ítems seleccionados
+        order_items_display = []
+        total_order_price = 0.0
+
+        if not self.selected_items:
+            order_items_display.append(ft.Text("Tu carrito está vacío. ¡Explora nuestro menú!", size=16, color=self.text_color))
+        else:
+            order_items_display.append(ft.Text("Detalles de tu Pedido:", size=20, weight=ft.FontWeight.BOLD, color=self.text_color))
+            for item_id, quantity in self.selected_items.items():
+                item = self.menu_service.get_item_menu_by_id(item_id)
+                if item:
+                    item_total = item.precio * quantity
+                    total_order_price += item_total
+                    order_items_display.append(
+                        ft.Row([
+                            ft.Text(f"{quantity} x {item.nombre}", expand=True, color=self.text_color),
+                            ft.Text(f"${item_total:,.2f}", color=self.text_color),
+                            ft.IconButton(
+                                icon=ft.icons.DELETE_FOREVER,
+                                tooltip="Quitar todo el ítem",
+                                icon_color=ft.colors.RED_700,
+                                on_click=lambda e, item_id=item.id: self._remove_all_of_item(item_id)
+                            )
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                    )
+            
+            order_items_display.append(ft.Divider(color=ft.colors.BLUE_GREY_700))
+            order_items_display.append(
+                ft.Row([
+                    ft.Text("Total del Pedido:", size=22, weight=ft.FontWeight.BOLD, color=self.text_color),
+                    ft.Text(f"${total_order_price:,.2f}", size=22, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_500)
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+            )
+
+        # Campos para información del cliente y dirección
+        self.customer_name_field = ft.TextField(label="Nombre Completo", hint_text="Juan Pérez", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.delivery_address_field = ft.TextField(label="Dirección de Envío", hint_text="Calle Falsa 123, Springfield", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.customer_phone_field = ft.TextField(label="Teléfono", hint_text="04XX-XXXXXXX", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+
+
         self.main_content_area.controls.append(
             CustomCard(
                 title="🛒 Realiza tu Pedido 🛒",
@@ -264,19 +399,63 @@ class MainView(ft.View):
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
                     ft.Text("Completa los detalles para tu pedido y dirección de envío.", size=16, color=self.text_color),
-                    ft.TextField(label="Nombre Completo", hint_text="Juan Pérez", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Dirección de Envío", hint_text="Calle Falsa 123, Springfield", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
-                    ft.TextField(label="Teléfono", hint_text="04XX-XXXXXXX", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)),
+                    *order_items_display, # Muestra los ítems del carrito
+                    ft.Divider(color=ft.colors.BLUE_GREY_700),
+                    self.customer_name_field,
+                    self.delivery_address_field,
+                    self.customer_phone_field,
                     ft.ElevatedButton(
                         "Confirmar Pedido",
                         icon=ft.icons.CHECK_CIRCLE,
-                        on_click=lambda e: show_snackbar(self.page, "¡Pedido simulado realizado con éxito!", ft.colors.GREEN_700)
+                        on_click=self._confirm_order # Llama a la nueva función para confirmar el pedido
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=15),
                 width=600
             )
         )
         self.main_content_area.update()
+
+    def _remove_all_of_item(self, item_id: int):
+        """Elimina todas las unidades de un ítem del pedido."""
+        if item_id in self.selected_items:
+            item_name = self.menu_service.get_item_menu_by_id(item_id).nombre # Obtener nombre para snackbar
+            del self.selected_items[item_id]
+            show_snackbar(self.page, f"Todas las unidades de '{item_name}' removidas del pedido.", ft.colors.AMBER_700)
+            logger.info(f"Todas las unidades de item ID: {item_id} removidas.")
+        self._load_orders_section() # Recargar la sección de pedidos para actualizar la vista
+
+    def _confirm_order(self, e):
+        """Maneja la confirmación de un pedido por parte del cliente."""
+        logger.info("Intentando confirmar pedido.")
+        if not self.selected_items:
+            show_snackbar(self.page, "Tu carrito está vacío. Añade ítems al menú antes de confirmar.", ft.colors.RED_500)
+            return
+
+        customer_name = self.customer_name_field.value
+        delivery_address = self.delivery_address_field.value
+        customer_phone = self.customer_phone_field.value
+
+        if not customer_name or not delivery_address or not customer_phone:
+            show_snackbar(self.page, "Por favor, completa todos los campos de contacto y dirección.", ft.colors.RED_500)
+            return
+        
+        # Calcular el total del pedido
+        total_order_price = 0.0
+        for item_id, quantity in self.selected_items.items():
+            item = self.menu_service.get_item_menu_by_id(item_id)
+            if item:
+                total_order_price += item.precio * quantity
+
+        # Aquí integrarías la lógica real para guardar el pedido en la base de datos.
+        # Por ahora, es un mensaje simulado.
+        show_snackbar(self.page, f"¡Pedido de ${total_order_price:,.2f} realizado con éxito a {delivery_address} para {customer_name}!", ft.colors.GREEN_700)
+        logger.info(f"Pedido simulado realizado. Cliente: {customer_name}, Total: {total_order_price}")
+
+        # Limpiar el carrito después del pedido
+        self.selected_items.clear()
+        self._load_home_section() # Redirigir al inicio o a una página de confirmación
+        self.page.update()
+
 
     def _load_admin_section(self):
         """Carga la sección de acceso de administrador."""
@@ -332,3 +511,4 @@ class MainView(ft.View):
             logger.warning(f"Login fallido para el usuario: {username}. Credenciales incorrectas.")
             show_snackbar(self.page, "Usuario o contraseña incorrectos.", ft.colors.RED_500)
         self.page.update()
+

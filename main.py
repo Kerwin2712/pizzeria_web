@@ -69,7 +69,7 @@ def main(page: ft.Page):
     # 3. Instanciar todos los servicios
     logger.info("Instanciando servicios de la aplicación...")
     cliente_service = ClienteService(Session)
-    menu_service = MenuService(Session)
+    menu_service = MenuService(Session) # Instancia el MenuService
     pedido_service = PedidoService(Session)
     financiero_service = FinancieroService(Session)
     pizzeria_info_service = PizzeriaInfoService(Session)
@@ -83,7 +83,7 @@ def main(page: ft.Page):
     admin_view_instance = AdminView(
         page,
         cliente_service,
-        menu_service,
+        menu_service, # Pasa el menu_service
         pedido_service,
         financiero_service,
         pizzeria_info_service,
@@ -94,8 +94,8 @@ def main(page: ft.Page):
     pizzeria_info = pizzeria_info_service.get_pizzeria_info()
     pizzeria_name = pizzeria_info.nombre_pizzeria if pizzeria_info else "Pizzería Acme"
 
-    # Luego instanciamos MainView, pasándole ahora el pizzeria_info_service y el nombre de la pizzería
-    main_view_instance = MainView(page, administrador_service, admin_view_instance, pizzeria_info_service) 
+    # Luego instanciamos MainView, pasándole ahora el pizzeria_info_service, el nombre de la pizzería y menu_service
+    main_view_instance = MainView(page, administrador_service, admin_view_instance, pizzeria_info_service, menu_service) # Pasa menu_service
     
     logger.info("Vistas creadas correctamente.")
 

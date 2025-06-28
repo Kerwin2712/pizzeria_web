@@ -373,15 +373,31 @@ class AdminView(ft.View):
         self.admin_content_area.controls.clear()
         
         categories = self.menu_service.get_all_categorias()
-        cat_columns = ["ID", "Nombre", "Descripción"]
+        cat_columns = ["ID", "Nombre", "Descripción", "Acciones"] # Añadir columna de acciones
         cat_rows = []
         if categories:
             for cat in categories:
-                cat_rows.append([str(cat.id), cat.nombre, cat.descripcion if cat.descripcion else ""])
+                cat_rows.append([
+                    str(cat.id),
+                    cat.nombre,
+                    cat.descripcion if cat.descripcion else "",
+                    ft.Row([
+                        ft.IconButton(
+                            icon=ft.icons.EDIT,
+                            tooltip="Editar Categoría",
+                            on_click=lambda e, category_id=cat.id: self._open_add_edit_categoria_dialog(e, category_id)
+                        ),
+                        ft.IconButton(
+                            icon=ft.icons.DELETE,
+                            tooltip="Eliminar Categoría",
+                            on_click=lambda e, category_id=cat.id: self._confirm_delete_categoria(e, category_id)
+                        )
+                    ])
+                ])
 
         self.admin_content_area.controls.append(
             CustomCard(
-                title="🍕 Gestión de Categorías del Menú 🍕",
+                title="🍕 Gestión de Categorías del Menú 📝",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
@@ -393,8 +409,6 @@ class AdminView(ft.View):
                                       text_color=self.text_color),
                     ft.Row([
                         ft.ElevatedButton("Añadir Categoría", on_click=self._open_add_edit_categoria_dialog),
-                        # ft.ElevatedButton("Editar Categoría", on_click=self._open_add_edit_categoria_dialog), # Implementar edición
-                        # ft.ElevatedButton("Eliminar Categoría", on_click=self._confirm_delete_categoria), # Implementar eliminación
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=800
@@ -403,7 +417,7 @@ class AdminView(ft.View):
 
         # --- Gestión de Ítems del Menú ---
         items = self.menu_service.get_all_items_menu()
-        item_columns = ["ID", "Nombre", "Precio", "Categoría", "Disponible"]
+        item_columns = ["ID", "Nombre", "Precio", "Categoría", "Disponible", "Acciones"] # Añadir columna de acciones
         item_rows = []
         if items:
             for item in items:
@@ -412,7 +426,25 @@ class AdminView(ft.View):
                 if item.categoria:
                     cat_name = item.categoria.nombre
                 
-                item_rows.append([str(item.id), item.nombre, f"${item.precio:,.2f}", cat_name, "Sí" if item.disponible else "No"])
+                item_rows.append([
+                    str(item.id),
+                    item.nombre,
+                    f"${item.precio:,.2f}",
+                    cat_name,
+                    "Sí" if item.disponible else "No",
+                    ft.Row([
+                        ft.IconButton(
+                            icon=ft.icons.EDIT,
+                            tooltip="Editar Ítem",
+                            on_click=lambda e, item_id=item.id: self._open_add_edit_item_dialog(e, item_id)
+                        ),
+                        ft.IconButton(
+                            icon=ft.icons.DELETE,
+                            tooltip="Eliminar Ítem",
+                            on_click=lambda e, item_id=item.id: self._confirm_delete_item(e, item_id)
+                        )
+                    ])
+                ])
 
         self.admin_content_area.controls.append(
             CustomCard(
@@ -428,8 +460,6 @@ class AdminView(ft.View):
                                       text_color=self.text_color),
                     ft.Row([
                         ft.ElevatedButton("Añadir Ítem", on_click=self._open_add_edit_item_dialog),
-                        # ft.ElevatedButton("Editar Ítem", on_click=self._open_add_edit_item_dialog), # Implementar edición
-                        # ft.ElevatedButton("Eliminar Ítem", on_click=self._confirm_delete_item), # Implementar eliminación
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=1000
@@ -437,83 +467,185 @@ class AdminView(ft.View):
         )
         self.admin_content_area.update()
     
-    def _open_add_edit_categoria_dialog(self, e):
+    def _open_add_edit_categoria_dialog(self, e, category_id=None):
         """Abre un diálogo para añadir o editar una categoría."""
-        logger.info("Abriendo diálogo para añadir/editar categoría.")
+        logger.info(f"Abriendo diálogo para {'editar' if category_id else 'añadir'} categoría. ID: {category_id}")
         # Solo cargar si está logueado
         if not self.is_logged_in:
             self._load_admin_login_form()
             return
 
-        nombre_field = ft.TextField(label="Nombre de la Categoría", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
-        descripcion_field = ft.TextField(label="Descripción (opcional)", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        is_edit_mode = category_id is not None
+        current_category = None
+        if is_edit_mode:
+            current_category = self.menu_service.get_categoria_by_id(category_id)
+            if not current_category:
+                show_snackbar(self.page, "Categoría no encontrada.", ft.colors.RED_500)
+                logger.warning(f"Intento de editar categoría con ID {category_id} no encontrada.")
+                return
+
+        nombre_field = ft.TextField(
+            label="Nombre de la Categoría",
+            value=current_category.nombre if is_edit_mode else "",
+            filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
+        descripcion_field = ft.TextField(
+            label="Descripción (opcional)",
+            value=current_category.descripcion if is_edit_mode and current_category.descripcion else "",
+            multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
 
         def save_categoria(e):
-            logger.info("Intentando guardar nueva categoría.")
+            logger.info(f"Intentando {'actualizar' if is_edit_mode else 'guardar nueva'} categoría.")
             if not nombre_field.value:
                 show_snackbar(self.page, "El nombre de la categoría es requerido.", ft.colors.RED_500)
                 logger.warning("Fallo al guardar categoría: nombre vacío.")
                 return
 
-            new_cat = self.menu_service.add_categoria(nombre_field.value, descripcion_field.value)
-            if new_cat:
-                show_snackbar(self.page, f"Categoría '{new_cat.nombre}' añadida con éxito.", ft.colors.GREEN_500)
-                logger.info(f"Categoría '{new_cat.nombre}' añadida con éxito (ID: {new_cat.id}).")
-                self.page.close_dialog(dialog) # Cierra el diálogo
-                self._load_menu_management() # Recarga la sección para mostrar los cambios
+            if is_edit_mode:
+                current_category.nombre = nombre_field.value
+                current_category.descripcion = descripcion_field.value
+                updated_cat = self.menu_service.update_categoria(current_category)
+                if updated_cat:
+                    show_snackbar(self.page, f"Categoría '{updated_cat.nombre}' actualizada con éxito.", ft.colors.GREEN_500)
+                    logger.info(f"Categoría '{updated_cat.nombre}' actualizada con éxito (ID: {updated_cat.id}).")
+                else:
+                    show_snackbar(self.page, "Error al actualizar la categoría.", ft.colors.RED_500)
+                    logger.error(f"Error al actualizar la categoría con ID {category_id}.")
             else:
-                show_snackbar(self.page, "Error al añadir la categoría.", ft.colors.RED_500)
-                logger.error("Error al añadir la categoría.")
+                new_cat = self.menu_service.add_categoria(nombre_field.value, descripcion_field.value)
+                if new_cat:
+                    show_snackbar(self.page, f"Categoría '{new_cat.nombre}' añadida con éxito.", ft.colors.GREEN_500)
+                    logger.info(f"Categoría '{new_cat.nombre}' añadida con éxito (ID: {new_cat.id}).")
+                else:
+                    show_snackbar(self.page, "Error al añadir la categoría.", ft.colors.RED_500)
+                    logger.error("Error al añadir la categoría.")
+            
+            self.page.close(dialog) # Cierra el diálogo
+            self._load_menu_management() # Recarga la sección para mostrar los cambios
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Añadir Nueva Categoría", color=self.text_color),
+            title=ft.Text(f"{'Editar' if is_edit_mode else 'Añadir Nueva'} Categoría", color=self.text_color),
             content=ft.Column([
                 nombre_field,
                 descripcion_field
             ], spacing=10),
             actions=[
-                ft.TextButton("Cancelar", on_click=lambda e: self.page.close_dialog(dialog)),
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton("Guardar", on_click=save_categoria)
             ],
             actions_alignment=ft.MainAxisAlignment.END,
             bgcolor=self.card_bg_color, # Fondo del diálogo
             shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
         )
-        self.page.dialog = dialog
+        self.page.open(dialog)
         dialog.open = True
         self.page.update()
 
-    def _open_add_edit_item_dialog(self, e):
-        """Abre un diálogo para añadir o editar un ítem del menú."""
-        logger.info("Abriendo diálogo para añadir/editar ítem del menú.")
+    def _confirm_delete_categoria(self, e, category_id: int):
+        """Muestra un diálogo de confirmación antes de eliminar una categoría."""
+        logger.info(f"Confirmación de eliminación para categoría ID: {category_id}.")
         # Solo cargar si está logueado
         if not self.is_logged_in:
             self._load_admin_login_form()
             return
 
-        nombre_field = ft.TextField(label="Nombre del Ítem", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
-        descripcion_field = ft.TextField(label="Descripción (opcional)", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
-        precio_field = ft.TextField(label="Precio", keyboard_type=ft.KeyboardType.NUMBER, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
-        imagen_url_field = ft.TextField(label="URL de Imagen (opcional)", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
-        disponible_checkbox = ft.Checkbox(label="Disponible", value=True, check_color=ft.colors.WHITE, fill_color=ft.colors.BLUE_GREY_700, label_style=ft.TextStyle(color=self.text_color)) # Estilos para modo oscuro
+        category_to_delete = self.menu_service.get_categoria_by_id(category_id)
+        if not category_to_delete:
+            show_snackbar(self.page, "Categoría no encontrada para eliminar.", ft.colors.RED_500)
+            logger.warning(f"Intento de eliminar categoría con ID {category_id} no encontrada.")
+            return
+
+        def delete_confirmed(e):
+            logger.info(f"Eliminando categoría ID: {category_id}.")
+            result = self.menu_service.delete_categoria(category_to_delete)
+            if result:
+                show_snackbar(self.page, f"Categoría '{category_to_delete.nombre}' eliminada con éxito.", ft.colors.GREEN_500)
+                logger.info(f"Categoría '{category_to_delete.nombre}' eliminada con éxito (ID: {category_to_delete.id}).")
+                self._load_menu_management() # Recarga la sección para mostrar los cambios
+            else:
+                show_snackbar(self.page, "Error al eliminar la categoría.", ft.colors.RED_500)
+                logger.error(f"Error al eliminar la categoría con ID {category_id}.")
+            self.page.close(confirm_dialog) # Cierra el diálogo
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirmar Eliminación", color=self.text_color),
+            content=ft.Text(f"¿Estás seguro de que quieres eliminar la categoría '{category_to_delete.nombre}'? Esta acción no se puede deshacer.", color=self.text_color),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(confirm_dialog)),
+                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700)) # CAMBIO AQUI
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color,
+            shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
+        )
+        self.page.open(confirm_dialog)
+        confirm_dialog.open = True
+        self.page.update()
+
+    def _open_add_edit_item_dialog(self, e, item_id=None):
+        """Abre un diálogo para añadir o editar un ítem del menú."""
+        logger.info(f"Abriendo diálogo para {'editar' if item_id else 'añadir'} ítem del menú. ID: {item_id}")
+        # Solo cargar si está logueado
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        is_edit_mode = item_id is not None
+        current_item = None
+        if is_edit_mode:
+            current_item = self.menu_service.get_item_menu_by_id(item_id)
+            if not current_item:
+                show_snackbar(self.page, "Ítem del menú no encontrado.", ft.colors.RED_500)
+                logger.warning(f"Intento de editar ítem con ID {item_id} no encontrado.")
+                return
+
+        nombre_field = ft.TextField(
+            label="Nombre del Ítem",
+            value=current_item.nombre if is_edit_mode else "",
+            filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
+        descripcion_field = ft.TextField(
+            label="Descripción (opcional)",
+            value=current_item.descripcion if is_edit_mode and current_item.descripcion else "",
+            multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
+        precio_field = ft.TextField(
+            label="Precio",
+            value=str(current_item.precio) if is_edit_mode else "",
+            keyboard_type=ft.KeyboardType.NUMBER, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
+        imagen_url_field = ft.TextField(
+            label="URL de Imagen (opcional)",
+            value=current_item.imagen_url if is_edit_mode and current_item.imagen_url else "",
+            filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54)
+        )
+        disponible_checkbox = ft.Checkbox(
+            label="Disponible",
+            value=current_item.disponible if is_edit_mode else True,
+            check_color=ft.colors.WHITE, fill_color=ft.colors.BLUE_GREY_700, label_style=ft.TextStyle(color=self.text_color)
+        )
 
         categorias = self.menu_service.get_all_categorias()
         categoria_dropdown_options = [ft.dropdown.Option(str(c.id), c.nombre) for c in categorias]
+        
+        initial_category_value = str(current_item.categoria_id) if is_edit_mode else None
         categoria_dropdown = ft.Dropdown(
             label="Categoría",
             options=categoria_dropdown_options,
+            value=initial_category_value,
             filled=True,
             fill_color=self.textfield_fill_color,
             color=self.text_color,
             label_style=ft.TextStyle(color=ft.colors.WHITE54),
             hint_style=ft.TextStyle(color=ft.colors.WHITE54),
-            dropdown_color=self.card_bg_color, # Fondo del desplegable
             text_style=ft.TextStyle(color=self.text_color)
         )
 
         def save_item(e):
-            logger.info("Intentando guardar nuevo ítem del menú.")
+            logger.info(f"Intentando {'actualizar' if is_edit_mode else 'guardar nuevo'} ítem del menú.")
             try:
                 precio = float(precio_field.value)
             except ValueError:
@@ -526,26 +658,42 @@ class AdminView(ft.View):
                 logger.warning("Fallo al guardar ítem: nombre o categoría vacíos.")
                 return
 
-            new_item = self.menu_service.add_item_menu(
-                nombre=nombre_field.value,
-                descripcion=descripcion_field.value,
-                precio=precio,
-                categoria_id=int(categoria_dropdown.value),
-                imagen_url=imagen_url_field.value,
-                disponible=disponible_checkbox.value
-            )
-            if new_item:
-                show_snackbar(self.page, f"Ítem '{new_item.nombre}' añadido con éxito.", ft.colors.GREEN_500)
-                logger.info(f"Ítem '{new_item.nombre}' añadido con éxito (ID: {new_item.id}).")
-                self.page.close_dialog(dialog)
-                self._load_menu_management()
+            if is_edit_mode:
+                current_item.nombre = nombre_field.value
+                current_item.descripcion = descripcion_field.value
+                current_item.precio = precio
+                current_item.imagen_url = imagen_url_field.value
+                current_item.disponible = disponible_checkbox.value
+                current_item.categoria_id = int(categoria_dropdown.value)
+                updated_item = self.menu_service.update_item_menu(current_item)
+                if updated_item:
+                    show_snackbar(self.page, f"Ítem '{updated_item.nombre}' actualizado con éxito.", ft.colors.GREEN_500)
+                    logger.info(f"Ítem '{updated_item.nombre}' actualizado con éxito (ID: {updated_item.id}).")
+                else:
+                    show_snackbar(self.page, "Error al actualizar el ítem.", ft.colors.RED_500)
+                    logger.error(f"Error al actualizar el ítem con ID {item_id}.")
             else:
-                show_snackbar(self.page, "Error al añadir el ítem.", ft.colors.RED_500)
-                logger.error("Error al añadir el ítem del menú.")
+                new_item = self.menu_service.add_item_menu(
+                    nombre=nombre_field.value,
+                    descripcion=descripcion_field.value,
+                    precio=precio,
+                    categoria_id=int(categoria_dropdown.value),
+                    imagen_url=imagen_url_field.value,
+                    disponible=disponible_checkbox.value
+                )
+                if new_item:
+                    show_snackbar(self.page, f"Ítem '{new_item.nombre}' añadido con éxito.", ft.colors.GREEN_500)
+                    logger.info(f"Ítem '{new_item.nombre}' añadido con éxito (ID: {new_item.id}).")
+                else:
+                    show_snackbar(self.page, "Error al añadir el ítem.", ft.colors.RED_500)
+                    logger.error("Error al añadir el ítem del menú.")
+            
+            self.page.close(dialog)
+            self._load_menu_management()
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Añadir Nuevo Ítem al Menú", color=self.text_color),
+            title=ft.Text(f"{'Editar' if is_edit_mode else 'Añadir Nuevo'} Ítem al Menú", color=self.text_color),
             content=ft.Column([
                 nombre_field,
                 descripcion_field,
@@ -555,15 +703,57 @@ class AdminView(ft.View):
                 categoria_dropdown
             ], spacing=10),
             actions=[
-                ft.TextButton("Cancelar", on_click=lambda e: self.page.close_dialog(dialog)),
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton("Guardar", on_click=save_item)
             ],
             actions_alignment=ft.MainAxisAlignment.END,
             bgcolor=self.card_bg_color, # Fondo del diálogo
             shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
         )
-        self.page.dialog = dialog
+        self.page.open(dialog)
         dialog.open = True
+        self.page.update()
+
+    def _confirm_delete_item(self, e, item_id: int):
+        """Muestra un diálogo de confirmación antes de eliminar un ítem del menú."""
+        logger.info(f"Confirmación de eliminación para ítem ID: {item_id}.")
+        # Solo cargar si está logueado
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        item_to_delete = self.menu_service.get_item_menu_by_id(item_id)
+        if not item_to_delete:
+            show_snackbar(self.page, "Ítem del menú no encontrado para eliminar.", ft.colors.RED_500)
+            logger.warning(f"Intento de eliminar ítem con ID {item_id} no encontrado.")
+            return
+
+        def delete_confirmed(e):
+            logger.info(f"Eliminando ítem ID: {item_id}.")
+            result = self.menu_service.delete_item_menu(item_to_delete)
+            if result:
+                show_snackbar(self.page, f"Ítem '{item_to_delete.nombre}' eliminado con éxito.", ft.colors.GREEN_500)
+                logger.info(f"Ítem '{item_to_delete.nombre}' eliminado con éxito (ID: {item_to_delete.id}).")
+                self._load_menu_management() # Recarga la sección para mostrar los cambios
+            else:
+                show_snackbar(self.page, "Error al eliminar el ítem.", ft.colors.RED_500)
+                logger.error(f"Error al eliminar el ítem con ID {item_id}.")
+            self.page.close(confirm_dialog) # Cierra el diálogo
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirmar Eliminación", color=self.text_color),
+            content=ft.Text(f"¿Estás seguro de que quieres eliminar el ítem '{item_to_delete.nombre}'? Esta acción no se puede deshacer.", color=self.text_color),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(confirm_dialog)),
+                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700)) # CAMBIO AQUÍ: Eliminado ft.MaterialState.DEFAULT
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color,
+            shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
+        )
+        self.page.open(confirm_dialog)
+        confirm_dialog.open = True
         self.page.update()
 
     def _load_client_management(self):
@@ -631,7 +821,7 @@ class AdminView(ft.View):
 
         self.admin_content_area.controls.append(
             CustomCard(
-                title="📋 Gestión de Pedidos �",
+                title="📋 Gestión de Pedidos 📋",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
@@ -677,7 +867,7 @@ class AdminView(ft.View):
         # Esto es una simplificación, para un mes exacto se podría usar:
         # import calendar
         # _, last_day = calendar.monthrange(today.year, today.month)
-        # last_day_of_month = date(today.year, today.month, last_day)
+        # last_day = date(today.year, today.month, last_day)
         last_day_of_month = date(today.year, today.month, 28) # Simplificado, mejor usar calendar.monthrange
         
         total_ingresos_mes = self.financiero_service.get_total_ingresos(first_day_of_month, last_day_of_month)

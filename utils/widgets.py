@@ -30,13 +30,14 @@ def create_data_table(columns: list[str], rows_data: list[list[str]],
                       heading_row_bgcolor: str = ft.colors.BLUE_GREY_100,
                       data_row_bgcolor_hover: str = ft.colors.BLUE_GREY_50,
                       border_color: str = ft.colors.BLUE_GREY_200,
-                      text_color: str = ft.colors.BLACK): # Nuevo: color de texto para celdas
+                      text_color: str = ft.colors.BLACK):
     """
     Crea una tabla de datos de Flet.
 
     Args:
         columns (list[str]): Nombres de las columnas.
         rows_data (list[list[str]]): Datos de las filas. Cada lista interna es una fila.
+                                     Las celdas pueden contener texto o controles Flet (ej. ft.Row).
         heading_row_bgcolor (str, optional): Color de fondo de la fila de encabezado. Defaults to ft.colors.BLUE_GREY_100.
         data_row_bgcolor_hover (str, optional): Color de fondo de las filas al pasar el ratón. Defaults to ft.colors.BLUE_GREY_50.
         border_color (str, optional): Color del borde de la tabla. Defaults to ft.colors.BLUE_GREY_200.
@@ -48,17 +49,30 @@ def create_data_table(columns: list[str], rows_data: list[list[str]],
     data_columns = [ft.DataColumn(ft.Text(col, weight=ft.FontWeight.BOLD, color=text_color)) for col in columns]
     data_rows = []
     for row in rows_data:
-        cells = [ft.DataCell(ft.Text(str(cell), color=text_color)) for cell in row]
+        cells = []
+        for cell_content in row:
+            if isinstance(cell_content, ft.Control):
+                # Si el contenido ya es un control de Flet, úsalo directamente en DataCell
+                cells.append(ft.DataCell(cell_content))
+            else:
+                # Si es texto o cualquier otro tipo, envuélvelo en un ft.Text
+                cells.append(ft.DataCell(ft.Text(str(cell_content), color=text_color)))
+        
+        # Eliminamos 'overlay_color' de ft.DataRow para evitar el AttributeError
+        # La propiedad data_row_color de ft.DataTable maneja el hover globalmente.
         data_rows.append(ft.DataRow(cells=cells))
 
     return ft.DataTable(
         columns=data_columns,
         rows=data_rows,
         heading_row_color=heading_row_bgcolor,
+        # Aquí se aplica el color de hover a todas las filas de la tabla de datos
         data_row_color={"hovered": data_row_bgcolor_hover},
         show_bottom_border=True,
         border_radius=ft.border_radius.all(8), # Bordes redondeados
-        border=ft.border.all(1, border_color)
+        border=ft.border.all(1, border_color),
+        vertical_lines=ft.border.BorderSide(0.5, border_color) if border_color else None,
+        horizontal_lines=ft.border.BorderSide(0.5, border_color) if border_color else None,
     )
 
 def create_date_picker(page: ft.Page, on_change_callback):
