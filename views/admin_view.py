@@ -397,7 +397,7 @@ class AdminView(ft.View):
 
         self.admin_content_area.controls.append(
             CustomCard(
-                title="🍕 Gestión de Categorías del Menú 📝",
+                title="🍕 Gestión de Categorías del Menú �",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
@@ -575,7 +575,7 @@ class AdminView(ft.View):
             content=ft.Text(f"¿Estás seguro de que quieres eliminar la categoría '{category_to_delete.nombre}'? Esta acción no se puede deshacer.", color=self.text_color),
             actions=[
                 ft.TextButton("Cancelar", on_click=lambda e: self.page.close(confirm_dialog)),
-                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700)) # CAMBIO AQUI
+                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700))
             ],
             actions_alignment=ft.MainAxisAlignment.END,
             bgcolor=self.card_bg_color,
@@ -746,7 +746,7 @@ class AdminView(ft.View):
             content=ft.Text(f"¿Estás seguro de que quieres eliminar el ítem '{item_to_delete.nombre}'? Esta acción no se puede deshacer.", color=self.text_color),
             actions=[
                 ft.TextButton("Cancelar", on_click=lambda e: self.page.close(confirm_dialog)),
-                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700)) # CAMBIO AQUÍ: Eliminado ft.MaterialState.DEFAULT
+                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700))
             ],
             actions_alignment=ft.MainAxisAlignment.END,
             bgcolor=self.card_bg_color,
@@ -765,15 +765,27 @@ class AdminView(ft.View):
         self.admin_content_area.controls.clear()
         
         clientes = self.cliente_service.get_all_clientes()
-        client_columns = ["ID", "Nombre", "Email", "Teléfono", "Dirección", "Registro"]
+        client_columns = ["ID", "Nombre", "Email", "Teléfono", "Dirección", "Registro", "Acciones"] # Añadida columna de Acciones
         client_rows = []
         if clientes:
             for client in clientes:
                 reg_date = client.fecha_registro.strftime("%Y-%m-%d %H:%M") if client.fecha_registro else "N/A"
                 client_rows.append([
-                    str(client.id), client.nombre, client.email,
+                    str(client.id), client.nombre, client.email if client.email else "N/A",
                     client.telefono if client.telefono else "N/A",
-                    client.direccion, reg_date
+                    client.direccion, reg_date,
+                    ft.Row([
+                        # ft.IconButton(
+                        #     icon=ft.icons.EDIT,
+                        #     tooltip="Editar Cliente",
+                        #     on_click=lambda e, client_id=client.id: show_snackbar(self.page, f"Editar cliente {client_id} - implementar.")
+                        # ),
+                        ft.IconButton(
+                            icon=ft.icons.DELETE,
+                            tooltip="Eliminar Cliente",
+                            on_click=lambda e, client_id=client.id: self._confirm_delete_client(e, client_id)
+                        )
+                    ])
                 ])
 
         self.admin_content_area.controls.append(
@@ -791,13 +803,53 @@ class AdminView(ft.View):
                     ft.Row([
                         # ft.ElevatedButton("Añadir Cliente", on_click=lambda e: show_snackbar(self.page, "Añadir cliente - implementar.")),
                         # ft.ElevatedButton("Editar Cliente", on_click=lambda e: show_snackbar(self.page, "Editar cliente - implementar.")),
-                        # ft.ElevatedButton("Eliminar Cliente", on_click=lambda e: show_snackbar(self.page, "Eliminar cliente - implementar.")),
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=1000
             )
         )
         self.admin_content_area.update()
+
+    def _confirm_delete_client(self, e, client_id: int):
+        """Muestra un diálogo de confirmación antes de eliminar un cliente."""
+        logger.info(f"Confirmación de eliminación para cliente ID: {client_id}.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        client_to_delete = self.cliente_service.get_cliente_by_id(client_id)
+        if not client_to_delete:
+            show_snackbar(self.page, "Cliente no encontrado para eliminar.", ft.colors.RED_500)
+            logger.warning(f"Intento de eliminar cliente con ID {client_id} no encontrado.")
+            return
+
+        def delete_confirmed(e):
+            logger.info(f"Eliminando cliente ID: {client_id}.")
+            result = self.cliente_service.delete_cliente(client_to_delete)
+            if result:
+                show_snackbar(self.page, f"Cliente '{client_to_delete.nombre}' eliminado con éxito.", ft.colors.GREEN_500)
+                logger.info(f"Cliente '{client_to_delete.nombre}' eliminado con éxito (ID: {client_to_delete.id}).")
+                self._load_client_management() # Recarga la sección para mostrar los cambios
+            else:
+                show_snackbar(self.page, "Error al eliminar el cliente.", ft.colors.RED_500)
+                logger.error(f"Error al eliminar el cliente con ID {client_id}.")
+            self.page.close(confirm_dialog)
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirmar Eliminación", color=self.text_color),
+            content=ft.Text(f"¿Estás seguro de que quieres eliminar al cliente '{client_to_delete.nombre}'? Esto también puede afectar pedidos asociados.", color=self.text_color),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(confirm_dialog)),
+                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color,
+            shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
+        )
+        self.page.open(confirm_dialog)
+        confirm_dialog.open = True
+        self.page.update()
 
     def _load_order_management(self):
         """Carga la sección para gestionar pedidos."""
@@ -808,7 +860,7 @@ class AdminView(ft.View):
         self.admin_content_area.controls.clear()
         
         pedidos = self.pedido_service.get_all_pedidos()
-        order_columns = ["ID", "Cliente", "Fecha/Hora", "Total", "Estado", "Dirección"]
+        order_columns = ["ID", "Cliente", "Fecha/Hora", "Total", "Estado", "Dirección", "Acciones"] # Añadida columna de Acciones
         order_rows = []
         if pedidos:
             for order in pedidos:
@@ -816,7 +868,19 @@ class AdminView(ft.View):
                 order_date_time = order.fecha_hora.strftime("%Y-%m-%d %H:%M") if order.fecha_hora else "N/A"
                 order_rows.append([
                     str(order.id), client_name, order_date_time,
-                    f"${order.total:,.2f}", order.estado, order.direccion_delivery
+                    f"${order.total:,.2f}", order.estado, order.direccion_delivery,
+                    ft.Row([
+                        # ft.IconButton(
+                        #     icon=ft.icons.EDIT,
+                        #     tooltip="Editar Pedido",
+                        #     on_click=lambda e, order_id=order.id: show_snackbar(self.page, f"Editar pedido {order_id} - implementar.")
+                        # ),
+                        ft.IconButton(
+                            icon=ft.icons.DELETE,
+                            tooltip="Eliminar Pedido",
+                            on_click=lambda e, order_id=order.id: self._confirm_delete_order(e, order_id)
+                        )
+                    ])
                 ])
 
         self.admin_content_area.controls.append(
@@ -834,13 +898,53 @@ class AdminView(ft.View):
                     ft.Row([
                         # ft.ElevatedButton("Ver Detalles", on_click=lambda e: show_snackbar(self.page, "Ver detalles de pedido - implementar.")),
                         # ft.ElevatedButton("Actualizar Estado", on_click=lambda e: show_snackbar(self.page, "Actualizar estado de pedido - implementar.")),
-                        # ft.ElevatedButton("Eliminar Pedido", on_click=lambda e: show_snackbar(self.page, "Eliminar pedido - implementar.")),
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=1000
             )
         )
         self.admin_content_area.update()
+
+    def _confirm_delete_order(self, e, order_id: int):
+        """Muestra un diálogo de confirmación antes de eliminar un pedido."""
+        logger.info(f"Confirmación de eliminación para pedido ID: {order_id}.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        order_to_delete = self.pedido_service.get_pedido_by_id(order_id)
+        if not order_to_delete:
+            show_snackbar(self.page, "Pedido no encontrado para eliminar.", ft.colors.RED_500)
+            logger.warning(f"Intento de eliminar pedido con ID {order_id} no encontrado.")
+            return
+
+        def delete_confirmed(e):
+            logger.info(f"Eliminando pedido ID: {order_id}.")
+            result = self.pedido_service.delete_pedido(order_to_delete)
+            if result:
+                show_snackbar(self.page, f"Pedido #{order_to_delete.id} eliminado con éxito.", ft.colors.GREEN_500)
+                logger.info(f"Pedido #{order_to_delete.id} eliminado con éxito.")
+                self._load_order_management() # Recarga la sección para mostrar los cambios
+            else:
+                show_snackbar(self.page, "Error al eliminar el pedido.", ft.colors.RED_500)
+                logger.error(f"Error al eliminar el pedido con ID {order_id}.")
+            self.page.close(confirm_dialog)
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirmar Eliminación", color=self.text_color),
+            content=ft.Text(f"¿Estás seguro de que quieres eliminar el pedido #{order_to_delete.id}? Esto eliminará también sus detalles asociados.", color=self.text_color),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(confirm_dialog)),
+                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color,
+            shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
+        )
+        self.page.open(confirm_dialog)
+        confirm_dialog.open = True
+        self.page.update()
 
     def _load_finance_management(self):
         """Carga la sección para gestionar las finanzas (ingresos/gastos)."""
@@ -851,14 +955,26 @@ class AdminView(ft.View):
         self.admin_content_area.controls.clear()
         
         registros = self.financiero_service.get_all_registros_financieros()
-        finance_columns = ["ID", "Fecha", "Tipo", "Monto", "Descripción", "Pedido ID"]
+        finance_columns = ["ID", "Fecha", "Tipo", "Monto", "Descripción", "Pedido ID", "Acciones"] # Añadida columna de Acciones
         finance_rows = []
         if registros:
             for rec in registros:
                 rec_date = rec.fecha.strftime("%Y-%m-%d %H:%M") if rec.fecha else "N/A"
                 finance_rows.append([
                     str(rec.id), rec_date, rec.tipo, f"${rec.monto:,.2f}",
-                    rec.descripcion if rec.descripcion else "", str(rec.pedido_id) if rec.pedido_id else "N/A"
+                    rec.descripcion if rec.descripcion else "", str(rec.pedido_id) if rec.pedido_id else "N/A",
+                    ft.Row([
+                        # ft.IconButton(
+                        #     icon=ft.icons.EDIT,
+                        #     tooltip="Editar Registro",
+                        #     on_click=lambda e, record_id=rec.id: show_snackbar(self.page, f"Editar registro {record_id} - implementar.")
+                        # ),
+                        ft.IconButton(
+                            icon=ft.icons.DELETE,
+                            tooltip="Eliminar Registro",
+                            on_click=lambda e, record_id=rec.id: self._confirm_delete_finance_record(e, record_id)
+                        )
+                    ])
                 ])
         
         # Calcular totales (ejemplo para el mes actual)
@@ -908,13 +1024,54 @@ class AdminView(ft.View):
                     ft.Row([
                         # ft.ElevatedButton("Añadir Registro", on_click=lambda e: show_snackbar(self.page, "Añadir registro financiero - implementar.")),
                         # ft.ElevatedButton("Editar Registro", on_click=lambda e: show_snackbar(self.page, "Editar registro financiero - implementar.")),
-                        # ft.ElevatedButton("Eliminar Registro", on_click=lambda e: show_snackbar(self.page, "Eliminar registro financiero - implementar.")),
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                 width=1000
             )
         )
         self.admin_content_area.update()
+
+    def _confirm_delete_finance_record(self, e, record_id: int):
+        """Muestra un diálogo de confirmación antes de eliminar un registro financiero."""
+        logger.info(f"Confirmación de eliminación para registro financiero ID: {record_id}.")
+        if not self.is_logged_in:
+            self._load_admin_login_form()
+            return
+
+        record_to_delete = self.financiero_service.get_registro_by_id(record_id)
+        if not record_to_delete:
+            show_snackbar(self.page, "Registro financiero no encontrado para eliminar.", ft.colors.RED_500)
+            logger.warning(f"Intento de eliminar registro financiero con ID {record_id} no encontrado.")
+            return
+
+        def delete_confirmed(e):
+            logger.info(f"Eliminando registro financiero ID: {record_id}.")
+            result = self.financiero_service.delete_registro(record_to_delete)
+            if result:
+                show_snackbar(self.page, f"Registro financiero #{record_to_delete.id} eliminado con éxito.", ft.colors.GREEN_500)
+                logger.info(f"Registro financiero #{record_to_delete.id} eliminado con éxito.")
+                self._load_finance_management() # Recarga la sección para mostrar los cambios
+            else:
+                show_snackbar(self.page, "Error al eliminar el registro financiero.", ft.colors.RED_500)
+                logger.error(f"Error al eliminar el registro financiero con ID {record_id}.")
+            self.page.close(confirm_dialog)
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirmar Eliminación", color=self.text_color),
+            content=ft.Text(f"¿Estás seguro de que quieres eliminar el registro financiero #{record_to_delete.id}?", color=self.text_color),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(confirm_dialog)),
+                ft.ElevatedButton("Eliminar", on_click=delete_confirmed, style=ft.ButtonStyle(bgcolor=ft.colors.RED_700))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color,
+            shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
+        )
+        self.page.open(confirm_dialog)
+        confirm_dialog.open = True
+        self.page.update()
+
 
     def _load_pizzeria_info_management(self):
         """Carga la sección para gestionar la información de la pizzería."""

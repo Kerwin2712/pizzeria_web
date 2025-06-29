@@ -24,7 +24,8 @@ class Cliente(Base):
     fecha_registro = Column(DateTime, default=datetime.now) # Fecha y hora de registro del cliente
 
     # Relación uno a muchos con Pedido (un cliente puede tener muchos pedidos)
-    pedidos = relationship("Pedido", back_populates="cliente")
+    # Al eliminar un cliente, todos sus pedidos asociados también se eliminarán en cascada.
+    pedidos = relationship("Pedido", back_populates="cliente", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Cliente(id={self.id}, nombre='{self.nombre}', email='{self.email}')>"
@@ -41,7 +42,8 @@ class CategoriaMenu(Base):
     descripcion = Column(Text, nullable=True) # Descripción opcional de la categoría
 
     # Relación uno a muchos con ItemMenu
-    items_menu = relationship("ItemMenu", back_populates="categoria")
+    # Al eliminar una categoría, todos los ítems de menú asociados a ella también se eliminarán en cascada.
+    items_menu = relationship("ItemMenu", back_populates="categoria", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<CategoriaMenu(id={self.id}, nombre='{self.nombre}')>"
@@ -63,6 +65,11 @@ class ItemMenu(Base):
     categoria_id = Column(Integer, ForeignKey('categorias_menu.id'), nullable=False)
     categoria = relationship("CategoriaMenu", back_populates="items_menu")
 
+    # Esta relación no necesita cascada "delete-orphan" si un DetallePedido siempre pertenece a un Pedido.
+    # Los DetallePedido serán eliminados en cascada por el Pedido.
+    detalles_pedido = relationship("DetallePedido", back_populates="item_menu")
+
+
     def __repr__(self):
         return f"<ItemMenu(id={self.id}, nombre='{self.nombre}', precio={self.precio})>"
 
@@ -82,10 +89,14 @@ class Pedido(Base):
 
     # Relación muchos a uno con Cliente
     cliente = relationship("Cliente", back_populates="pedidos")
+    
     # Relación uno a muchos con DetallePedido
-    detalles = relationship("DetallePedido", back_populates="pedido")
+    # Al eliminar un pedido, todos sus detalles de pedido asociados también se eliminarán en cascada.
+    detalles = relationship("DetallePedido", back_populates="pedido", cascade="all, delete-orphan")
+    
     # Relación uno a uno con RegistroFinanciero (un pedido puede tener un registro de ingreso)
-    registro_financiero = relationship("RegistroFinanciero", back_populates="pedido", uselist=False)
+    # Si eliminas un pedido, el registro financiero asociado se eliminará en cascada.
+    registro_financiero = relationship("RegistroFinanciero", back_populates="pedido", uselist=False, cascade="all, delete-orphan")
 
 
     def __repr__(self):
@@ -100,7 +111,8 @@ class DetallePedido(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     # Clave foránea al pedido al que pertenece este detalle
-    pedido_id = Column(Integer, ForeignKey('pedidos.id'), nullable=False)
+    # ON DELETE CASCADE a nivel de la base de datos es importante aquí para asegurar la integridad referencial.
+    pedido_id = Column(Integer, ForeignKey('pedidos.id', ondelete='CASCADE'), nullable=False)
     # Clave foránea al ítem del menú que se incluyó en el pedido
     item_menu_id = Column(Integer, ForeignKey('items_menu.id'), nullable=False)
     cantidad = Column(Integer, nullable=False) # Cantidad de este ítem en el pedido
@@ -109,7 +121,7 @@ class DetallePedido(Base):
     # Relación muchos a uno con Pedido
     pedido = relationship("Pedido", back_populates="detalles")
     # Relación muchos a uno con ItemMenu
-    item_menu = relationship("ItemMenu")
+    item_menu = relationship("ItemMenu", back_populates="detalles_pedido") # Asegurarse de que back_populates sea correcto aquí
 
     def __repr__(self):
         return f"<DetallePedido(id={self.id}, pedido_id={self.pedido_id}, item_menu_id={self.item_menu_id}, cantidad={self.cantidad})>"
@@ -162,7 +174,9 @@ class RegistroFinanciero(Base):
     tipo = Column(String(20), nullable=False) # Tipo de transacción (ej: 'Ingreso', 'Gasto')
     descripcion = Column(Text, nullable=True) # Descripción del registro financiero
     # Clave foránea opcional a Pedido (si este ingreso proviene de un pedido)
-    pedido_id = Column(Integer, ForeignKey('pedidos.id'), nullable=True)
+    # ON DELETE SET NULL es una opción si quieres mantener el registro financiero pero desvincularlo del pedido.
+    # Si quieres eliminarlo en cascada cuando se elimina el pedido, la relación en Pedido es la que debe tener 'cascade'.
+    pedido_id = Column(Integer, ForeignKey('pedidos.id', ondelete='SET NULL'), nullable=True)
 
     # Relación muchos a uno con Pedido (un registro financiero puede estar vinculado a un pedido)
     pedido = relationship("Pedido", back_populates="registro_financiero")
@@ -182,10 +196,3 @@ def setup_database(db_url):
     Base.metadata.create_all(engine) # Crea todas las tablas definidas en los modelos
     Session = sessionmaker(bind=engine)
     return Session, engine
-
-# Ejemplo de uso (esto no se ejecutará si solo importas el archivo)
-# if __name__ == "__main__":
-#     # Reemplaza con tus credenciales de PostgreSQL
-#     DATABASE_URL = "postgresql://tu_usuario:tu_contrasena@localhost:5432/tu_base_de_datos"
-#     Session, engine = setup_database(DATABASE_URL)
-#     print("Tablas de la base de datos creadas o verificadas.")
