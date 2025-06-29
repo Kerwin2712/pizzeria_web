@@ -50,11 +50,14 @@ class PizzeriaInfoService(BaseService):
             # o cargarla en la sesión de actualización.
             session.close() # Mantener el cierre aquí para una lectura simple.
 
-    # MODIFICACIÓN IMPORTANTE AQUÍ:
     def update_pizzeria_info_by_data(self, id: int, nombre_pizzeria: str = None, direccion: str = None,
                                      telefono: str = None, email_contacto: str = None,
                                      horario_atencion: str = None, red_social_facebook: str = None,
-                                     red_social_instagram: str = None):
+                                     red_social_instagram: str = None,
+                                     pago_movil_banco: str = None, pago_movil_telefono: str = None,
+                                     pago_movil_cedula: str = None, pago_movil_cuenta: str = None,
+                                     pago_movil_beneficiario: str = None, whatsapp_numero: str = None,
+                                     whatsapp_chat_link: str = None):
         """
         Actualiza la información de la pizzería existente basándose en un ID y los nuevos datos.
         Esto asegura que el objeto sea persistente dentro de la sesión de actualización.
@@ -81,6 +84,24 @@ class PizzeriaInfoService(BaseService):
                 info.red_social_facebook = red_social_facebook
             if red_social_instagram is not None:
                 info.red_social_instagram = red_social_instagram
+            
+            # Nuevos campos de Pago Móvil
+            if pago_movil_banco is not None:
+                info.pago_movil_banco = pago_movil_banco
+            if pago_movil_telefono is not None:
+                info.pago_movil_telefono = pago_movil_telefono
+            if pago_movil_cedula is not None:
+                info.pago_movil_cedula = pago_movil_cedula
+            if pago_movil_cuenta is not None:
+                info.pago_movil_cuenta = pago_movil_cuenta
+            if pago_movil_beneficiario is not None:
+                info.pago_movil_beneficiario = pago_movil_beneficiario
+            
+            # Nuevos campos de WhatsApp
+            if whatsapp_numero is not None:
+                info.whatsapp_numero = whatsapp_numero
+            if whatsapp_chat_link is not None:
+                info.whatsapp_chat_link = whatsapp_chat_link
 
             session.add(info) # Reasocia el objeto con la sesión (aunque ya esté si fue cargado aquí)
             session.commit()
@@ -93,34 +114,13 @@ class PizzeriaInfoService(BaseService):
         finally:
             session.close()
 
-
-    # El método 'update_pizzeria_info' original que recibía una instancia
-    # puede seguir existiendo si se usa de otra forma, pero es mejor usar
-    # 'update_pizzeria_info_by_data' para las actualizaciones desde la UI.
-    # Si 'BaseService.update' ya maneja esto, entonces la llamada original
-    # desde admin_view.py debe asegurar que la instancia sea fresca o detachada.
-    # Si quieres mantener tu método BaseService.update, asegúrate de que hace lo siguiente:
-    # def update(self, instance):
-    #     session: Session = self.Session()
-    #     try:
-    #         # Esto es crucial: merge si la instancia no es de esta sesión
-    #         # o simplemente pasa la instancia si se cargó en esta sesión.
-    #         # Si instance viene de una sesión anterior y está detachada,
-    #         # session.merge(instance) la reasocia.
-    #         session.merge(instance)
-    #         session.commit()
-    #         session.refresh(instance)
-    #         return instance
-    #     except SQLAlchemyError as e:
-    #         session.rollback()
-    #         raise e # Re-lanza la excepción para que el llamador la maneje
-    #     finally:
-    #         session.close()
-
-
     def add_pizzeria_info(self, nombre_pizzeria: str, direccion: str, telefono: str,
                           email_contacto: str = None, horario_atencion: str = None,
-                          red_social_facebook: str = None, red_social_instagram: str = None):
+                          red_social_facebook: str = None, red_social_instagram: str = None,
+                          pago_movil_banco: str = None, pago_movil_telefono: str = None,
+                          pago_movil_cedula: str = None, pago_movil_cuenta: str = None,
+                          pago_movil_beneficiario: str = None, whatsapp_numero: str = None,
+                          whatsapp_chat_link: str = None):
         """
         Añade la información inicial de la pizzería.
         Debería llamarse solo si no existe información previa.
@@ -139,7 +139,14 @@ class PizzeriaInfoService(BaseService):
                 email_contacto=email_contacto,
                 horario_atencion=horario_atencion,
                 red_social_facebook=red_social_facebook,
-                red_social_instagram=red_social_instagram
+                red_social_instagram=red_social_instagram,
+                pago_movil_banco=pago_movil_banco,
+                pago_movil_telefono=pago_movil_telefono,
+                pago_movil_cedula=pago_movil_cedula,
+                pago_movil_cuenta=pago_movil_cuenta,
+                pago_movil_beneficiario=pago_movil_beneficiario,
+                whatsapp_numero=whatsapp_numero,
+                whatsapp_chat_link=whatsapp_chat_link
             )
             session.add(new_info)
             session.commit()

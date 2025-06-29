@@ -343,7 +343,7 @@ class MainView(ft.View):
         if self.menu_tab_content_area and selected_index < len(self.tab_views_content_list):
             self.menu_tab_content_area.content = self.tab_views_content_list[selected_index]
             self.menu_tab_content_area.update() # Forzar la actualización del contenedor de contenido
-        self.page.update() # Forzar la actualización de la página
+        self.page.update()
 
 
     def _create_menu_item_card(self, item):
@@ -394,7 +394,7 @@ class MainView(ft.View):
         """Añade un ítem al pedido del cliente."""
         self.selected_items[item_id] = self.selected_items.get(item_id, 0) + 1
         show_snackbar(self.page, f"'{item_name}' añadido al pedido. Cantidad: {self.selected_items[item_id]}", ft.colors.BLUE_GREY_600)
-        logger.info(f"Añadido item {item_name} (ID: {item_id}). Cantidad: {self.selected_items[item_id]}")
+        logger.info(f"Añadido item {item_name} (ID: {item_id}). Cantidad: {self.selected_items[item_id]}") # Corregido para item_id directamente
         self._load_menu_section() # Recargar la sección del menú para actualizar las cantidades
         # No llamar a page.update() aquí, lo hará _load_menu_section()
 
@@ -477,7 +477,7 @@ class MainView(ft.View):
                     ft.ElevatedButton(
                         "Confirmar Pedido",
                         icon=ft.icons.CHECK_CIRCLE,
-                        on_click=self._confirm_order # Llama a la nueva función para confirmar el pedido
+                        on_click=self._show_payment_options # Llama a la nueva función para mostrar opciones de pago
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=15),
                 width=600
@@ -494,17 +494,122 @@ class MainView(ft.View):
             logger.info(f"Todas las unidades de item ID: {item_id} removidas.")
         self._load_orders_section() # Recargar la sección de pedidos para actualizar la vista
 
-    def _confirm_order(self, e):
-        """Maneja la confirmación de un pedido por parte del cliente, guardando en la DB."""
-        logger.info("Intentando confirmar pedido y guardar en la base de datos.")
-        if not self.selected_items:
-            show_snackbar(self.page, "Tu carrito está vacío. Añade ítems al menú antes de confirmar.", ft.colors.RED_500)
-            return
+    def _show_payment_options(self, e):
+        """Muestra un diálogo para que el cliente elija el método de pago."""
+        logger.info("Mostrando opciones de pago.")
+        
+        self.payment_method = ft.RadioGroup(
+            content=ft.Column([
+                ft.Radio(value="Efectivo", label="Efectivo"),
+                ft.Radio(value="Pago Móvil", label="Pago Móvil")
+            ]),
+            value="Efectivo" # Valor por defecto
+        )
+
+        def on_payment_selected(e):
+            if self.payment_method.value == "Pago Móvil":
+                self._display_pago_movil_info()
+            else:
+                self._hide_pago_movil_info()
+            self.page.update()
+
+        self.payment_method.on_change = on_payment_selected
+
+        self.pago_movil_info_display = ft.Column([], visible=False) # Contenedor para la info de Pago Móvil
+
+        # Inicialmente oculta la info de Pago Móvil
+        self.pago_movil_info_display.visible = False
+
+        payment_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Selecciona tu Método de Pago", color=self.text_color),
+            content=ft.Column([
+                self.payment_method,
+                self.pago_movil_info_display
+            ], spacing=10),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: self.page.close(payment_dialog)),
+                ft.ElevatedButton("Finalizar Pedido", on_click=lambda e: self._confirm_order_with_payment(payment_dialog))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=self.card_bg_color,
+            shape=ft.RoundedRectangleBorder(radius=ft.border_radius.all(15))
+        )
+        self.page.open(payment_dialog)
+        payment_dialog.open = True
+        self.page.update()
+
+    def _display_pago_movil_info(self):
+        """Muestra la información de Pago Móvil y el botón de WhatsApp."""
+        logger.info("Mostrando información de Pago Móvil.")
+        info = self.pizzeria_info_service.get_pizzeria_info()
+        
+        self.pago_movil_info_display.controls.clear()
+
+        if info and info.pago_movil_banco and info.pago_movil_telefono and info.pago_movil_cedula and info.pago_movil_beneficiario:
+            self.pago_movil_info_display.controls.extend([
+                ft.Divider(),
+                ft.Text("Detalles de Pago Móvil:", size=18, weight=ft.FontWeight.BOLD, color=self.text_color),
+                ft.Text(f"Banco: {info.pago_movil_banco}", color=self.text_color),
+                ft.Text(f"Teléfono: {info.pago_movil_telefono}", color=self.text_color),
+                ft.Text(f"Cédula: {info.pago_movil_cedula}", color=self.text_color),
+                ft.Text(f"Beneficiario: {info.pago_movil_beneficiario}", color=self.text_color),
+            ])
+            if info.pago_movil_cuenta:
+                 self.pago_movil_info_display.controls.append(ft.Text(f"Cuenta: {info.pago_movil_cuenta}", color=self.text_color))
+            
+            if info.whatsapp_numero and info.whatsapp_chat_link:
+                # Modificación aquí: En lugar de 'url' y 'new_window', usar 'on_click' y 'self.page.launch_url()'
+                self.pago_movil_info_display.controls.extend([
+                    ft.Divider(),
+                    ft.Text("Envía tu comprobante vía WhatsApp:", size=16, color=self.text_color),
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.icons.CHAT),
+                            ft.Text(f"Enviar Comprobante al {info.whatsapp_numero}")
+                        ]),
+                        on_click=lambda e: self.page.launch_url(info.whatsapp_chat_link), # Uso correcto para abrir URL
+                        style=ft.ButtonStyle(bgcolor=ft.colors.GREEN_700, color=ft.colors.WHITE)
+                    )
+                ])
+            elif info.whatsapp_numero:
+                 self.pago_movil_info_display.controls.extend([
+                    ft.Divider(),
+                    ft.Text("Envía tu comprobante vía WhatsApp:", size=16, color=self.text_color),
+                    ft.Text(f"Número de WhatsApp: {info.whatsapp_numero}", color=self.text_color),
+                    ft.Text("El link de chat de WhatsApp no está configurado. Por favor, contacta directamente.", color=ft.colors.YELLOW_500)
+                ])
+            else:
+                self.pago_movil_info_display.controls.append(ft.Text("No hay información de WhatsApp configurada.", color=ft.colors.YELLOW_500))
+
+            self.pago_movil_info_display.visible = True
+        else:
+            self.pago_movil_info_display.controls.append(ft.Text("Información de Pago Móvil no configurada. Por favor, consulta a la administración.", color=ft.colors.RED_400))
+            self.pago_movil_info_display.visible = True # Mostrar el mensaje de error
+        
+        self.pago_movil_info_display.update() # Asegura que el contenido se actualice
+
+    def _hide_pago_movil_info(self):
+        """Oculta la información de Pago Móvil."""
+        logger.info("Ocultando información de Pago Móvil.")
+        self.pago_movil_info_display.visible = False
+        self.pago_movil_info_display.controls.clear()
+        self.pago_movil_info_display.update()
+
+    def _confirm_order_with_payment(self, dialog):
+        """
+        Confirma el pedido con el método de pago seleccionado
+        y cierra el diálogo de pago.
+        """
+        logger.info(f"Confirmando pedido con método de pago: {self.payment_method.value}")
+        dialog.open = False # Cerrar el diálogo de selección de pago
+        self.page.update()
 
         customer_name = self.customer_name_field.value
         customer_phone = self.customer_phone_field.value
-        customer_email = self.customer_email_field.value # Nuevo
+        customer_email = self.customer_email_field.value
         delivery_address = self.delivery_address_field.value
+        metodo_pago = self.payment_method.value # Obtener el método de pago seleccionado
 
         if not customer_name or not delivery_address or not customer_phone:
             show_snackbar(self.page, "Por favor, completa los campos obligatorios: Nombre, Teléfono y Dirección.", ft.colors.RED_500)
@@ -516,14 +621,9 @@ class MainView(ft.View):
             if customer_email:
                 cliente = self.cliente_service.get_cliente_by_email(customer_email)
             
-            # Si no se encontró por email o no se proporcionó email, buscar por teléfono
-            # Nota: get_cliente_by_telefono no existe, usar search_clientes y filtrar
-            # O crear un nuevo cliente si no se encuentra un match exacto por teléfono/nombre
             if not cliente:
-                # Intentar buscar por nombre y teléfono si no hay email o no se encontró por email
                 clientes_por_telefono = self.cliente_service.search_clientes(query=customer_phone)
                 if clientes_por_telefono:
-                    # Filtrar por nombre exacto si hay múltiples resultados por teléfono
                     cliente_match = next((c for c in clientes_por_telefono if c.nombre.lower() == customer_name.lower()), None)
                     if cliente_match:
                         cliente = cliente_match
@@ -534,7 +634,7 @@ class MainView(ft.View):
                     cliente_data = {
                         'nombre': customer_name,
                         'telefono': customer_phone,
-                        'direccion': delivery_address # La dirección se asocia al cliente en su primera aparición
+                        'direccion': delivery_address
                     }
                     if customer_email:
                         cliente_data['email'] = customer_email
@@ -552,24 +652,29 @@ class MainView(ft.View):
             for item_id, quantity in self.selected_items.items():
                 items_para_pedido.append({'item_id': item_id, 'cantidad': quantity})
 
-            # 3. Añadir el pedido a la base de datos
+            # Calcular el total del pedido antes de añadirlo (podría ser redundante si el servicio ya lo hace, pero es buena práctica)
+            total_pedido_calculated = sum(self.menu_service.get_item_menu_by_id(item_id).precio * quantity for item_id, quantity in self.selected_items.items() if self.menu_service.get_item_menu_by_id(item_id))
+
+
+            # 3. Añadir el pedido a la base de datos, incluyendo el método de pago
             nuevo_pedido = self.pedido_service.add_pedido(
                 cliente_id=cliente.id,
                 direccion_delivery=delivery_address,
-                items_con_cantidad=items_para_pedido
+                items_con_cantidad=items_para_pedido,
+                total=total_pedido_calculated, # Asegúrate que el servicio acepte 'total' como argumento
+                metodo_pago=metodo_pago # Pasa el método de pago
             )
 
             if nuevo_pedido:
                 # 4. Registrar la transacción financiera (ingreso)
-                # CORRECCIÓN AQUÍ: Cambiado add_registro_financiero a add_registro
                 self.financiero_service.add_registro(
-                    tipo='Ingreso', # Asegúrate que el tipo coincida con el esperado por tu modelo (ej. 'Ingreso' en mayúscula)
+                    tipo='Ingreso',
                     monto=nuevo_pedido.total,
-                    descripcion=f"Venta de pedido #{nuevo_pedido.id} a {cliente.nombre}",
+                    descripcion=f"Venta de pedido #{nuevo_pedido.id} ({metodo_pago}) a {cliente.nombre}",
                     pedido_id=nuevo_pedido.id
                 )
-                show_snackbar(self.page, f"¡Pedido #{nuevo_pedido.id} realizado con éxito para {cliente.nombre}! Total: ${nuevo_pedido.total:,.2f}", ft.colors.GREEN_700)
-                logger.info(f"Pedido #{nuevo_pedido.id} completado y registrado. Cliente: {cliente.nombre}, Total: {nuevo_pedido.total}")
+                show_snackbar(self.page, f"¡Pedido #{nuevo_pedido.id} realizado con éxito para {cliente.nombre}! Total: ${nuevo_pedido.total:,.2f} ({metodo_pago})", ft.colors.GREEN_700)
+                logger.info(f"Pedido #{nuevo_pedido.id} completado y registrado. Cliente: {cliente.nombre}, Total: {nuevo_pedido.total}, Método: {metodo_pago}")
 
                 # Limpiar el carrito y campos de formulario después del pedido exitoso
                 self.selected_items.clear()
@@ -585,7 +690,7 @@ class MainView(ft.View):
 
         except Exception as ex:
             show_snackbar(self.page, f"Ocurrió un error inesperado al procesar el pedido: {ex}", ft.colors.RED_700)
-            logger.exception("Error inesperado en _confirm_order:")
+            logger.exception("Error inesperado en _confirm_order_with_payment:")
         
         self.page.update()
 
@@ -644,3 +749,4 @@ class MainView(ft.View):
             logger.warning(f"Login fallido para el usuario: {username}. Credenciales incorrectas.")
             show_snackbar(self.page, "Usuario o contraseña incorrectos.", ft.colors.RED_500)
         self.page.update()
+

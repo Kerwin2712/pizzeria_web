@@ -64,6 +64,17 @@ class AdminView(ft.View):
         self.pizzeria_hours_field = ft.TextField(label="Horario de Atención", multiline=True, filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
         self.pizzeria_facebook_field = ft.TextField(label="URL Facebook", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
         self.pizzeria_instagram_field = ft.TextField(label="URL Instagram", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        
+        # Nuevos campos para Pago Móvil
+        self.pago_movil_banco_field = ft.TextField(label="Pago Móvil - Banco", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pago_movil_telefono_field = ft.TextField(label="Pago Móvil - Teléfono", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pago_movil_cedula_field = ft.TextField(label="Pago Móvil - Cédula", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pago_movil_cuenta_field = ft.TextField(label="Pago Móvil - N° Cuenta", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.pago_movil_beneficiario_field = ft.TextField(label="Pago Móvil - Beneficiario", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+
+        # Nuevos campos para WhatsApp
+        self.whatsapp_numero_field = ft.TextField(label="WhatsApp - Número", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
+        self.whatsapp_chat_link_field = ft.TextField(label="WhatsApp - Link de Chat", filled=True, fill_color=self.textfield_fill_color, color=self.text_color, hint_style=ft.TextStyle(color=ft.colors.WHITE54))
 
         # Variable para controlar si el administrador está logueado
         self.is_logged_in = False # Por defecto, no logueado. Este estado será actualizado por MainView.
@@ -397,7 +408,7 @@ class AdminView(ft.View):
 
         self.admin_content_area.controls.append(
             CustomCard(
-                title="🍕 Gestión de Categorías del Menú �",
+                title="🍕 Gestión de Categorías del Menú 🍽️",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
@@ -860,7 +871,7 @@ class AdminView(ft.View):
         self.admin_content_area.controls.clear()
         
         pedidos = self.pedido_service.get_all_pedidos()
-        order_columns = ["ID", "Cliente", "Fecha/Hora", "Total", "Estado", "Dirección", "Acciones"] # Añadida columna de Acciones
+        order_columns = ["ID", "Cliente", "Fecha/Hora", "Total", "Estado", "Método de Pago", "Dirección", "Acciones"] # Añadida columna de Método de Pago
         order_rows = []
         if pedidos:
             for order in pedidos:
@@ -868,7 +879,9 @@ class AdminView(ft.View):
                 order_date_time = order.fecha_hora.strftime("%Y-%m-%d %H:%M") if order.fecha_hora else "N/A"
                 order_rows.append([
                     str(order.id), client_name, order_date_time,
-                    f"${order.total:,.2f}", order.estado, order.direccion_delivery,
+                    f"${order.total:,.2f}", order.estado,
+                    order.metodo_pago if order.metodo_pago else "N/A", # Mostrar método de pago
+                    order.direccion_delivery,
                     ft.Row([
                         # ft.IconButton(
                         #     icon=ft.icons.EDIT,
@@ -1092,12 +1105,23 @@ class AdminView(ft.View):
         self.pizzeria_facebook_field.value = info.red_social_facebook if info else ""
         self.pizzeria_instagram_field.value = info.red_social_instagram if info else ""
 
+        # Asigna los valores de los nuevos campos de Pago Móvil y WhatsApp
+        self.pago_movil_banco_field.value = info.pago_movil_banco if info else ""
+        self.pago_movil_telefono_field.value = info.pago_movil_telefono if info else ""
+        self.pago_movil_cedula_field.value = info.pago_movil_cedula if info else ""
+        self.pago_movil_cuenta_field.value = info.pago_movil_cuenta if info else ""
+        self.pago_movil_beneficiario_field.value = info.pago_movil_beneficiario if info else ""
+        self.whatsapp_numero_field.value = info.whatsapp_numero if info else ""
+        self.whatsapp_chat_link_field.value = info.whatsapp_chat_link if info else ""
+
+
         self.admin_content_area.controls.append(
             CustomCard(
                 title="🏢 Gestión de Información de la Pizzería 📋",
                 title_color=self.text_color,
                 bgcolor=self.card_bg_color,
                 content=ft.Column([
+                    ft.Text("Información General", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
                     self.pizzeria_name_field,
                     self.pizzeria_address_field,
                     self.pizzeria_phone_field,
@@ -1105,12 +1129,23 @@ class AdminView(ft.View):
                     self.pizzeria_hours_field,
                     self.pizzeria_facebook_field,
                     self.pizzeria_instagram_field,
+                    ft.Divider(color=ft.colors.BLUE_GREY_700),
+                    ft.Text("Configuración de Pago Móvil", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
+                    self.pago_movil_banco_field,
+                    self.pago_movil_telefono_field,
+                    self.pago_movil_cedula_field,
+                    self.pago_movil_cuenta_field,
+                    self.pago_movil_beneficiario_field,
+                    ft.Divider(color=ft.colors.BLUE_GREY_700),
+                    ft.Text("Configuración de WhatsApp para Comprobantes", size=20, weight=ft.FontWeight.BOLD, color=self.text_color),
+                    self.whatsapp_numero_field,
+                    self.whatsapp_chat_link_field,
                     ft.ElevatedButton("Guardar Cambios", on_click=self._save_pizzeria_info) # Nuevo método para guardar
                 ], horizontal_alignment=ft.CrossAxisAlignment.START, spacing=15),
                 width=600
             )
         )
-        # No self.admin_content_area.update() aquí.
+        self.admin_content_area.update() # Asegura que la UI se actualice
 
     def _save_pizzeria_info(self, e):
         """Método para guardar la información de la pizzería."""
@@ -1127,6 +1162,17 @@ class AdminView(ft.View):
         horario_atencion = self.pizzeria_hours_field.value
         red_social_facebook = self.pizzeria_facebook_field.value
         red_social_instagram = self.pizzeria_instagram_field.value
+
+        # Nuevos campos de Pago Móvil
+        pago_movil_banco = self.pago_movil_banco_field.value
+        pago_movil_telefono = self.pago_movil_telefono_field.value
+        pago_movil_cedula = self.pago_movil_cedula_field.value
+        pago_movil_cuenta = self.pago_movil_cuenta_field.value
+        pago_movil_beneficiario = self.pago_movil_beneficiario_field.value
+
+        # Nuevos campos de WhatsApp
+        whatsapp_numero = self.whatsapp_numero_field.value
+        whatsapp_chat_link = self.whatsapp_chat_link_field.value
 
         if not nombre_pizzeria or not direccion or not telefono:
             show_snackbar(self.page, "Nombre, Dirección y Teléfono son requeridos.", ft.colors.RED_500)
@@ -1146,7 +1192,14 @@ class AdminView(ft.View):
                 email_contacto=email_contacto,
                 horario_atencion=horario_atencion,
                 red_social_facebook=red_social_facebook,
-                red_social_instagram=red_social_instagram
+                red_social_instagram=red_social_instagram,
+                pago_movil_banco=pago_movil_banco,
+                pago_movil_telefono=pago_movil_telefono,
+                pago_movil_cedula=pago_movil_cedula,
+                pago_movil_cuenta=pago_movil_cuenta,
+                pago_movil_beneficiario=pago_movil_beneficiario,
+                whatsapp_numero=whatsapp_numero,
+                whatsapp_chat_link=whatsapp_chat_link
             )
             if updated_info:
                 show_snackbar(self.page, "Información de la pizzería actualizada con éxito.", ft.colors.GREEN_500)
@@ -1165,7 +1218,14 @@ class AdminView(ft.View):
                 email_contacto=email_contacto,
                 horario_atencion=horario_atencion,
                 red_social_facebook=red_social_facebook,
-                red_social_instagram=red_social_instagram
+                red_social_instagram=red_social_instagram,
+                pago_movil_banco=pago_movil_banco,
+                pago_movil_telefono=pago_movil_telefono,
+                pago_movil_cedula=pago_movil_cedula,
+                pago_movil_cuenta=pago_movil_cuenta,
+                pago_movil_beneficiario=pago_movil_beneficiario,
+                whatsapp_numero=whatsapp_numero,
+                whatsapp_chat_link=whatsapp_chat_link
             )
             if new_info:
                 show_snackbar(self.page, "Información de la pizzería añadida con éxito.", ft.colors.GREEN_500)
@@ -1214,3 +1274,4 @@ class AdminView(ft.View):
             )
         )
         self.admin_content_area.update()
+

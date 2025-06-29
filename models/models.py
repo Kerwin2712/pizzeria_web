@@ -86,6 +86,7 @@ class Pedido(Base):
     total = Column(Float, nullable=False) # Precio total del pedido
     estado = Column(String(50), default="Pendiente", nullable=False) # Estado del pedido (ej: "Pendiente", "En preparación", "En camino", "Entregado", "Cancelado")
     direccion_delivery = Column(Text, nullable=False) # Dirección final de entrega para este pedido
+    metodo_pago = Column(String(50), nullable=True) # Nuevo campo: Método de pago ('Efectivo', 'Pago Móvil')
 
     # Relación muchos a uno con Cliente
     cliente = relationship("Cliente", back_populates="pedidos")
@@ -141,7 +142,18 @@ class InformacionPizzeria(Base):
     horario_atencion = Column(Text, nullable=True) # Ej: "Lunes a Viernes: 10 AM - 10 PM"
     red_social_facebook = Column(String(255), nullable=True) # URL de Facebook
     red_social_instagram = Column(String(255), nullable=True) # URL de Instagram
-    # Puedes añadir más campos para otra información relevante (descripción, etc.)
+    
+    # Nuevos campos para Pago Móvil
+    pago_movil_banco = Column(String(100), nullable=True)
+    pago_movil_telefono = Column(String(20), nullable=True)
+    pago_movil_cedula = Column(String(20), nullable=True)
+    pago_movil_cuenta = Column(String(50), nullable=True)
+    pago_movil_beneficiario = Column(String(100), nullable=True)
+
+    # Nuevos campos para WhatsApp
+    whatsapp_numero = Column(String(20), nullable=True)
+    whatsapp_chat_link = Column(Text, nullable=True)
+
 
     def __repr__(self):
         return f"<InformacionPizzeria(id={self.id}, nombre='{self.nombre_pizzeria}')>"
@@ -196,3 +208,4 @@ def setup_database(db_url):
     Base.metadata.create_all(engine) # Crea todas las tablas definidas en los modelos
     Session = sessionmaker(bind=engine)
     return Session, engine
+

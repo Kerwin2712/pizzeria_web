@@ -15,7 +15,7 @@ class PedidoService(BaseService):
         super().__init__(Session)
 
     def add_pedido(self, cliente_id: int, direccion_delivery: str,
-                   items_con_cantidad: list[dict]):
+                   items_con_cantidad: list[dict], total: float, metodo_pago: str = None):
         """
         Añade un nuevo pedido y sus detalles.
 
@@ -24,7 +24,9 @@ class PedidoService(BaseService):
             direccion_delivery (str): Dirección de entrega del pedido.
             items_con_cantidad (list[dict]): Lista de diccionarios,
                                               donde cada dict tiene 'item_id' y 'cantidad'.
-                                              Ej: [{'item_id': 1, 'cantidad': 2}, ...]
+                                              Ej: [{'item_id': 1, 'cantidad': 2}, ...].
+            total (float): El precio total del pedido.
+            metodo_pago (str, optional): El método de pago ('Efectivo', 'Pago Móvil'). Defaults to None.
 
         Returns:
             Pedido: La instancia del pedido añadido.
@@ -34,36 +36,34 @@ class PedidoService(BaseService):
         try:
             cliente = session.query(Cliente).get(cliente_id)
             if not cliente:
-                raise ValueError(f"Cliente con ID {cliente_id} no encontrado.")
+                print(f"Error: Cliente con ID {cliente_id} no encontrado.")
+                return None
 
-            total_pedido = 0.0
-            detalles_pedido = []
+            # Crea el nuevo pedido
+            nuevo_pedido = Pedido(
+                cliente_id=cliente.id,
+                direccion_delivery=direccion_delivery,
+                total=total, # Asigna el total recibido
+                metodo_pago=metodo_pago # Asigna el método de pago recibido
+            )
+            session.add(nuevo_pedido)
+            session.flush() # Para obtener el ID del pedido antes de los detalles
+
+            # Añade los detalles del pedido
             for item_data in items_con_cantidad:
                 item_menu = session.query(ItemMenu).get(item_data['item_id'])
                 if not item_menu:
-                    raise ValueError(f"Ítem de menú con ID {item_data['item_id']} no encontrado.")
-                if not item_menu.disponible:
-                    raise ValueError(f"Ítem de menú '{item_menu.nombre}' no disponible.")
-
-                cantidad = item_data['cantidad']
-                precio_unitario = item_menu.precio
-                subtotal_item = precio_unitario * cantidad
-                total_pedido += subtotal_item
-
+                    print(f"Advertencia: Ítem de menú con ID {item_data['item_id']} no encontrado. Se omitirá.")
+                    continue
+                
                 detalle = DetallePedido(
+                    pedido_id=nuevo_pedido.id,
                     item_menu_id=item_menu.id,
-                    cantidad=cantidad,
-                    precio_unitario=precio_unitario
+                    cantidad=item_data['cantidad'],
+                    precio_unitario=item_menu.precio # Usa el precio actual del ítem del menú
                 )
-                detalles_pedido.append(detalle)
+                session.add(detalle)
 
-            nuevo_pedido = Pedido(
-                cliente_id=cliente_id,
-                direccion_delivery=direccion_delivery,
-                total=total_pedido,
-                detalles=detalles_pedido
-            )
-            session.add(nuevo_pedido)
             session.commit()
             session.refresh(nuevo_pedido)
             return nuevo_pedido
@@ -71,68 +71,40 @@ class PedidoService(BaseService):
             session.rollback()
             print(f"Error al añadir pedido: {e}")
             return None
-        except ValueError as e:
-            session.rollback()
-            print(f"Error de validación al añadir pedido: {e}")
-            return None
         finally:
             session.close()
 
     def get_pedido_by_id(self, pedido_id: int):
-        """
-        Obtiene un pedido por su ID, cargando también los detalles y el cliente.
-        """
+        """Obtiene un pedido por su ID, cargando también el cliente y los detalles."""
         session: Session = self.Session()
         try:
+            # Cargar el pedido, el cliente asociado y los detalles del pedido
             return session.query(Pedido).options(
                 joinedload(Pedido.cliente),
                 joinedload(Pedido.detalles).joinedload(DetallePedido.item_menu)
-            ).get(pedido_id)
+            ).filter_by(id=pedido_id).first()
         except SQLAlchemyError as e:
-            print(f"Error al obtener pedido por ID {pedido_id}: {e}")
+            print(f"Error al obtener pedido por ID '{pedido_id}': {e}")
             return None
         finally:
             session.close()
 
-    def update_pedido_estado(self, pedido_id: int, nuevo_estado: str):
-        """
-        Actualiza el estado de un pedido.
-
-        Args:
-            pedido_id (int): ID del pedido a actualizar.
-            nuevo_estado (str): El nuevo estado del pedido (ej: 'En preparación', 'En camino').
-
-        Returns:
-            Pedido: La instancia del pedido actualizada.
-            None: Si no se encuentra el pedido o ocurre un error.
-        """
-        session: Session = self.Session()
-        try:
-            pedido = session.query(Pedido).get(pedido_id)
-            if pedido:
-                pedido.estado = nuevo_estado
-                session.commit()
-                session.refresh(pedido)
-            return pedido
-        except SQLAlchemyError as e:
-            session.rollback()
-            print(f"Error al actualizar estado del pedido {pedido_id}: {e}")
-            return None
-        finally:
-            session.close()
+    def update_pedido(self, pedido_instance: Pedido):
+        """Actualiza un pedido existente."""
+        return self.update(pedido_instance)
 
     def delete_pedido(self, pedido_instance: Pedido):
         """Elimina un pedido y sus detalles asociados."""
         return self.delete(pedido_instance)
 
     def search_pedidos(self, cliente_id: int = None, estado: str = None,
-                       fecha_inicio: date = None, fecha_fin: date = None):
+                       fecha_inicio: date = None, fecha_fin: date = None) -> list[Pedido]:
         """
-        Busca pedidos con varios criterios de filtrado.
+        Busca pedidos por ID de cliente, estado y/o rango de fechas.
 
         Args:
-            cliente_id (int, optional): ID del cliente para filtrar. Defaults to None.
-            estado (str, optional): Estado del pedido para filtrar. Defaults to None.
+            cliente_id (int, optional): ID del cliente. Defaults to None.
+            estado (str, optional): Estado del pedido. Defaults to None.
             fecha_inicio (date, optional): Fecha de inicio del rango. Defaults to None.
             fecha_fin (date, optional): Fecha de fin del rango. Defaults to None.
 
